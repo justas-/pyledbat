@@ -31,13 +31,13 @@ class LedbatTest(object):
         assert self._is_client
 
         # Prevent re-starting the test
-        assert not self._is_init
+        assert not self.is_init
 
         # Send the init message
         self._build_and_send_init()
 
         # Schedule re-sender / disposer
-        asyncio.get_event_loop().call_later(T_INIT_ACK, self._init_ack_missing)
+        self._hdl_init_ack = asyncio.get_event_loop().call_later(T_INIT_ACK, self._init_ack_missing)
 
     def _build_and_send_init(self):
         """Build and send the INIT message"""
@@ -63,7 +63,7 @@ class LedbatTest(object):
         # Keep resending INIT for up to 3 times
         if self._num_init_sent < 3:
             self._build_and_send_init()
-            asyncio.get_event_loop().call_later(T_INIT_ACK, self._init_ack_missing)
+            self._hdl_init_ack = asyncio.get_event_loop().call_later(T_INIT_ACK, self._init_ack_missing)
         else:
             # After 3 time, dispose the test
             logging.info('{} INI-ACK missing!'.format(self))
@@ -76,7 +76,7 @@ class LedbatTest(object):
         self._build_and_send_init_ack()
 
         # Start timer to wait for data
-        asyncio.get_event_loop().call_later(T_INIT_DATA, self._init_data_missing)
+        self._hdl_act_to_data = asyncio.get_event_loop().call_later(T_INIT_DATA, self._init_data_missing)
 
     def _init_data_missing(self):
         """Called when DATA is not received after INIT-ACK"""
@@ -84,7 +84,7 @@ class LedbatTest(object):
         # Keep resending INIT-ACK up to 3 times
         if self._num_init_ack_sent < 3:
             self._build_and_send_init_ack()
-            asyncio.get_event_loop().call_later(T_INIT_DATA, self._init_data_missing)
+            self._hdl_act_to_data = asyncio.get_event_loop().call_later(T_INIT_DATA, self._init_data_missing)
         else:
             # After 3 times dispose
             logging.info('{} DATA missing after 3 INIT-ACK'.format(self))
@@ -136,6 +136,7 @@ class LedbatTest(object):
 
     def dispose(self):
         """Cleanup this test"""
+
         # Log information
         logging.info('{} Disposing'.format(self))
 
@@ -143,6 +144,10 @@ class LedbatTest(object):
         if self._hdl_init_ack is not None:
             self._hdl_init_ack.cancel()
             self._hdl_init_ack = None
+
+        if self._hdl_act_to_data is not None:
+            self._hdl_act_to_data.cancel()
+            self._hdl_act_to_data = None
 
         # Remove from the owner
         self._owner.remove_test(self)

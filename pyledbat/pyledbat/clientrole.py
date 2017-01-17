@@ -62,3 +62,11 @@ class clientrole(baserole.baserole):
 
         # Send the init message to the server
         lt.start_init()
+
+    def remove_test(self, test):
+        """Extend remove_test to close client when the last test is removed"""
+        super().remove_test(test)
+
+        if len(self._tests) == 0:
+            logging.info('Last test removed. Closing client')
+            asyncio.get_event_loop().stop()
