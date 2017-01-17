@@ -2,7 +2,8 @@ import logging
 import asyncio
 import struct
 
-T_INIT_ACK = 5.0     # Time to wait for INIT-ACK
+T_INIT_ACK = 5.0    # Time to wait for INIT-ACK
+T_INIT_DATA = 5.0   # Time to wait for DATA after sending INIT-ACK
 
 class LedbatTest(object):
     """An instance representing a single LEDBAT test"""
@@ -13,10 +14,13 @@ class LedbatTest(object):
         self._remote_port = remote_port
         self._owner = owner
         
-        self._is_init = False
         self._num_init_sent = 0
-        self._hdl_init_ack = None
+        self._hdl_init_ack = None       # Receive INIT-ACK after ACK
 
+        self._num_init_ack_sent = 0
+        self._hdl_act_to_data = None    # Receive DATA after INIT-ACK
+        
+        self.is_init = False
         self.local_channel = None
         self.remote_channel = None
 
@@ -40,7 +44,11 @@ class LedbatTest(object):
         
         # Build the message
         msg_bytes = bytearray(12)
-        struct.pack_into('>III', msg_bytes, 0, 1, 0, self.local_channel)
+        struct.pack_into('>III', msg_bytes, 0, 
+                         1,                     # Type - ACK
+                         0,                     # Remote Channel
+                         self.local_channel     # Local channel
+        ) 
 
         # Send it to the remote
         self._owner.send_data(msg_bytes, (self._remote_ip, self._remote_port))
@@ -62,16 +70,69 @@ class LedbatTest(object):
             self.dispose()
 
     def send_init_ack(self):
-        pass
+        """Send the INIT-ACK reply to INIT"""
 
-    def init_received(self):
-        pass
+        # Send INIT-ACK
+        self._build_and_send_init_ack()
 
-    def init_ack_received(self):
-        pass
+        # Start timer to wait for data
+        asyncio.get_event_loop().call_later(T_INIT_DATA, self._init_data_missing)
 
-    def start_test(self):
-        pass
+    def _init_data_missing(self):
+        """Called when DATA is not received after INIT-ACK"""
+        
+        # Keep resending INIT-ACK up to 3 times
+        if self._num_init_ack_sent < 3:
+            self._build_and_send_init_ack()
+            asyncio.get_event_loop().call_later(T_INIT_DATA, self._init_data_missing)
+        else:
+            # After 3 times dispose
+            logging.info('{} DATA missing after 3 INIT-ACK'.format(self))
+            self.dispose()
+
+    def _build_and_send_init_ack(self):
+        """Build and send INI-ACK message"""
+
+        # Build message bytes
+        msg_bytes = bytearray(12)
+        struct.pack_into('>III', msg_bytes, 0,
+                         1,                     # Type
+                         self.remote_channel,   # Remote channel
+                         self.local_channel     # Local channel
+        )
+
+        # Send it
+        self._owner.send_data(msg_bytes, (self._remote_ip, self._remote_port))
+        self._num_init_ack_sent += 1
+
+        # Print log
+        logging.info('{} Sent INIT-ACK message ({})'.format(self, self._num_init_ack_sent))
+
+    def init_ack_received(self, remote_channel):
+        """Handle INIT-ACK message from remote"""
+
+        # Check if we are laready init
+        if self.is_init:
+            # Ignore message, most probably duplicate
+            return
+        else:
+            # Save details. We are init now
+            self.remote_channel = remote_channel
+            self.is_init = True
+
+            logging.info('%s Test initialized' %self)
+
+            # Cancel timer
+            self._hdl_init_ack.cancel()
+            self._hdl_init_ack = None
+
+            # Start the TEST
+            self._start_test()
+    
+    def _start_test(self):
+        """Start testing"""
+
+        logging.info('{} Starting test'.format(self))
 
     def dispose(self):
         """Cleanup this test"""

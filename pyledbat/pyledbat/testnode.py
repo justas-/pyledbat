@@ -45,7 +45,7 @@ def main(params):
         client.start_client(args.remote, UDP_PORT)
     else:
         # Do the Server thing
-        server = serverrole.serverrole()
+        server = serverrole.serverrole(protocol)
         server.start_server()
 
     # Wait for Ctrl-C

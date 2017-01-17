@@ -1,20 +1,54 @@
 import asyncio
 import random
+import struct
+import logging
 
+import baserole
 import ledbat_test
 
-class clientrole(object):
+class clientrole(baserole.baserole):
     """description of class"""
 
     def __init__(self, udp_protocol):
-        # Save reference to the receiver
-        self._udp_protocol = udp_protocol
+        return super().__init__(udp_protocol)
 
-        # Inform receiver to deliver data to us
-        self._udp_protocol.register_receiver(self)
+    def datagram_received(self, data, addr):
+        """Process the received datagram"""
 
-        # Keep all tests here. LocalID -> ledbat_test
-        self._tests = {}
+        # Extract the message type
+        msg_type = struct.unpack('>I', data[0:4])[0]
+
+        # Handle each type
+        if msg_type == 1:
+            self._handle_init(data, addr)
+        elif msg_type == 2:
+            self._handle_data(data, addr)
+        elif msg_type == 3:
+            self._handle_ack(data, addr)
+        else:
+            logging.warn('Discarded unknown message type ({}) from {}'
+                         .format(msg_type, addr))
+
+    def _handle_init(self, data, addr):
+
+        # Extract remote and local channels
+        (rem_ch, loc_ch) = struct.unpack('>II', data[4:12])
+        
+        if rem_ch == 0:
+            logging.debug('Client should not handle incomming tests!')
+        else:
+            # Ensure we have this test
+            lt = self._tests.get(rem_ch)
+            if lt is not None:
+                lt.init_ack_received(loc_ch)
+            else:
+                logging.debug('Received INIT-ACK for unknown test %s' %rem_ch)
+
+    def _handle_data(self, data, addr):
+        logging.warn('Client should not receive DATA')
+
+    def _handle_ack(self, data, addr):
+        pass
         
     def start_client(self, remote_ip, remote_port):
         """Start the functioning of the client"""
@@ -28,12 +62,3 @@ class clientrole(object):
 
         # Send the init message to the server
         lt.start_init()
-
-    def send_data(self, data, addr):
-        """Send the data to indicated addr"""
-        self._udp_protocol.send_data(data, addr)
-
-    def remove_test(self, test):
-        """Remove the given test from the list of tests"""
-        del self._tests[test.local_channel]
-
