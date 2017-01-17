@@ -5,7 +5,7 @@
     <SchemaVersion>2.0</SchemaVersion>
     <ProjectGuid>6dab62b0-bcdc-4435-88bc-12662d9d8726</ProjectGuid>
     <ProjectHome>.</ProjectHome>
-    <StartupFile>pyledbat.py</StartupFile>
+    <StartupFile>testnode.py</StartupFile>
     <SearchPath>
     </SearchPath>
     <WorkingDirectory>.</WorkingDirectory>
@@ -22,7 +22,22 @@
     <EnableUnmanagedDebugging>false</EnableUnmanagedDebugging>
   </PropertyGroup>
   <ItemGroup>
+    <Compile Include="clientrole.py">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="ledbat_test.py">
+      <SubType>Code</SubType>
+    </Compile>
     <Compile Include="pyledbat.py" />
+    <Compile Include="serverrole.py">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="testnode.py">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="udpserver.py">
+      <SubType>Code</SubType>
+    </Compile>
   </ItemGroup>
   <PropertyGroup>
     <VisualStudioVersion Condition="'$(VisualStudioVersion)' == ''">10.0</VisualStudioVersion>
