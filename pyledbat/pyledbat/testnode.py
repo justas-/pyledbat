@@ -65,7 +65,7 @@ if __name__ == '__main__':
     # Parse the command line params
     parser = argparse.ArgumentParser(description='LEDBAT Test program')
 
-    parser.add_argument('--role', nargs=1, help='Role of the instance {client|server}', default='server')
+    parser.add_argument('--role', help='Role of the instance {client|server}', default='server')
     parser.add_argument('--remote', help='IP Address of the test server')
 
     args = parser.parse_args()
