@@ -7,6 +7,7 @@ import pyledbat
 
 T_INIT_ACK = 5.0    # Time to wait for INIT-ACK
 T_INIT_DATA = 5.0   # Time to wait for DATA after sending INIT-ACK
+T_IDLE = 10.0       # Time to wait when idle before destroying
 
 SZ_DATA = 1024      # Data size in each message
 
@@ -25,7 +26,8 @@ class LedbatTest(object):
         self._num_init_ack_sent = 0
         self._hdl_act_to_data = None    # Receive DATA after INIT-ACK
 
-        self._hdl_send_data = None
+        self._hdl_send_data = None      # Used to schedule data sending
+        self._hdl_idle = None           # Idle check handle
 
         self._ledbat = pyledbat.LEDBAT()
         self._next_seq = 1
@@ -38,8 +40,12 @@ class LedbatTest(object):
 
         self._time_start = None
         self._time_stop = None
+        self._time_last_rx = None
 
         self._num_to_send = 10000
+
+        # Run periodic checks if object should be removed due to being idle
+        self._hdl_idle = asyncio.get_event_loop().call_later(T_IDLE, self._check_for_idle)
 
     def start_init(self):
         """Start the test initialization procedure"""
@@ -54,7 +60,16 @@ class LedbatTest(object):
         self._build_and_send_init()
 
         # Schedule re-sender / disposer
-        self._hdl_init_ack = asyncio.get_event_loop().call_later(T_INIT_ACK, self._init_ack_missing)
+        self._hdl_init_ack = asyncio.get_event_loop().call_later(T_INIT_ACK, self._check_for_idle)
+
+    def _check_for_idle(self):
+        """Periodic check to see if idle test should be removed"""
+
+        if self._time_last_rx is None or time.time() - self._time_last_rx > T_IDLE:
+            logging.info('%s Destroying due to being idle' %self)
+            self.dispose()
+        else:
+            self._hdl_init_ack = asyncio.get_event_loop().call_later(T_INIT_ACK, self._check_for_idle)
 
     def _build_and_send_init(self):
         """Build and send the INIT message"""
@@ -72,7 +87,7 @@ class LedbatTest(object):
         self._num_init_sent += 1
 
         # Print log
-        logging.info('{} Sent INI message ({})'.format(self, self._num_init_sent))
+        logging.info('{} Sent INIT message ({})'.format(self, self._num_init_sent))
 
     def _init_ack_missing(self):
         """Called by when init ACK not received within time interval"""
@@ -127,6 +142,9 @@ class LedbatTest(object):
 
     def init_ack_received(self, remote_channel):
         """Handle INIT-ACK message from remote"""
+
+        # Update time of latest datain
+        self._time_last_rx = time.time()
 
         # Check if we are laready init
         if self.is_init:
@@ -208,18 +226,23 @@ class LedbatTest(object):
     def data_received(self, data, receive_time):
         """Handle the DATA message for this test"""
 
+        # Update time of latest datain
+        self._time_last_rx = time.time()
+
         # If we are acceptor, update the stat
         if not self._is_client and not self.is_init:
             if self._hdl_act_to_data is not None:
                 self._hdl_act_to_data.cancel()
                 self._hdl_act_to_data = None
+            
             self.is_init = True
+            logging.info('%s Got first data. Test is init' %self)
 
         # data is binary data _without_ the header
         (seq, ts) = struct.unpack('>IQ', data[0:12])
 
         # Get the delay
-        one_way_delay = receive_time - (ts / 1000000)
+        one_way_delay = (receive_time * 1000000) - ts 
 
         # Send ACK, no delays/grouping
         self._send_ack(seq, seq, [one_way_delay])
@@ -230,22 +253,25 @@ class LedbatTest(object):
         msg_bytes = bytearray()
         
         # Header
-        msg_bytes.append(struct.pack('>III', 3, self.remote_channel, self.local_channel))
+        msg_bytes.extend(struct.pack('>III', 3, self.remote_channel, self.local_channel))
 
         # ACK data
-        msg_bytes.append(struct.pack('>II', ack_from, ack_to))
+        msg_bytes.extend(struct.pack('>II', ack_from, ack_to))
 
         # Delay samples
         num_samples = len(one_way_delays)
-        msg_bytes.append(struct.pack('>I', num_samples))
+        msg_bytes.extend(struct.pack('>I', num_samples))
         for sample in one_way_delays:
-            msg_bytes.append(struct.pack('>Q', sample))
+            msg_bytes.extend(struct.pack('>Q', int(sample)))
 
         # Send ACK
         self._owner.send_data(msg_bytes, (self._remote_ip, self._remote_port))
 
     def ack_received(self, ack_data, rx_time):
         """Handle the ACK"""
+
+        # Update time of latest datain
+        self._time_last_rx = time.time()
 
         # Extract the data
         (ack_from, ack_to, num_delays) = struct.unpack('>III', ack_data[0:12])
@@ -290,6 +316,10 @@ class LedbatTest(object):
         if self._hdl_send_data is not None:
             self._hdl_send_data.cancel()
             self._hdl_send_data = None
+
+        if self._hdl_idle is not None:
+            self._hdl_idle.cancel()
+            self._hdl_idle = None
 
         # Remove from the owner
         self._owner.remove_test(self)

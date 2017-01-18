@@ -43,7 +43,7 @@ class serverrole(baserole.baserole):
             else:
                 logging.warn('Discarded unknown message type (%s) from %s' %(msg_type, addr))
 
-    def _test_init_req(their_channel, addr):
+    def _test_init_req(self, their_channel, addr):
         """Initialize new test as requested"""
 
         # This is attempt to start a new test

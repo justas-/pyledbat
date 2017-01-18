@@ -67,7 +67,4 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
 
-    args.role = 'client'
-    args.remote = '10.51.32.211'
-
     main(args)
