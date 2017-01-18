@@ -54,6 +54,9 @@ def main(params):
     except KeyboardInterrupt:
         pass
 
+    if args.role == 'client':
+        client.stop_all_tests()
+
     # Cleanup
     transport.close()
     loop.close()

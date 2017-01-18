@@ -1,13 +1,14 @@
 import time
 import datetime
 import math
+import logging
 
 class LEDBAT(object):
     CURRENT_FILTER = 8          # Number of elements in current delay filter
     BASE_HISTORY = 10           # Number of elements in base delay history
     INIT_CWND = 2               # Number of MSSes in initial cwnd value
     MSS = 1500                  # Maximum segment size
-    TARGET = 100000
+    TARGET = 50                 # Target in milliseconds. Per [RFC6817] must be <= 100ms
     GAIN = 1                    # Congestion window to delay response rate
     ALLOWED_INCREASE = 1
     MIN_CWND = 2
@@ -18,7 +19,7 @@ class LEDBAT(object):
     ALPHA = 0.125               # alpha, beta per Jacobson, V. and M. Karels, "Congestion Avoidance and Control
     BETA = 0.25
 
-    def __init__(self):
+    def __init__(self, log_events = False):
         """Initialize the instance"""
         self._current_delays = LEDBAT.CURRENT_FILTER * [1000000]
         self._base_delays = LEDBAT.BASE_HISTORY * [float('inf')]
@@ -37,8 +38,12 @@ class LEDBAT(object):
         self._srtt = None
         self._rttvar = None
 
+        self._log_events = log_events                   # Prevent writing to logger
+
     def ack_received(self, delays, bytes_acked=None, rt_measurements = None):
-        """Parse the received delay sample(s)"""
+        """Parse the received delay sample(s)
+           delays is milliseconds, rt_measurements in seconds!
+        """
 
         # If not provided assume Max segment size
         if bytes_acked is None:
@@ -76,6 +81,10 @@ class LEDBAT(object):
             if time.time() - self._last_data_loss < self._rtt:
                 # At most once per RTT
                 return
+
+        # Log info
+        if self._log_events:
+            logging.info('%s Data loss event!' %self)
 
         # Save time when last dataloss event happened
         self._last_data_loss = time.time()
@@ -116,12 +125,9 @@ class LEDBAT(object):
         sent_data = 0       # Flightsize during last RTT
 
         for entry in self._sent_data:
-            if entry[0] > cutoff_time:
+            if entry[0] > cutoff_time:  # Sent AFTER cutoff
                 sent_data += entry[1]
                 sends_in_rtt.append(entry)
-            else:
-                # All remaining entries are older
-                break
 
         # Prevent list for growing too big
         self._sent_data = sends_in_rtt
@@ -136,11 +142,14 @@ class LEDBAT(object):
         else:
             # Calculate backoff when retry can be made (for this data size)
             # This it TODO to define best way to calc
-            backoff = self._cto / 2
+            backoff = self._cto / 20
             return (False, backoff)
 
     def _no_ack_in_cto(self):
         """Update CWND if no ACK was received in CTO"""
+
+        if self._log_events:
+            logging.info('%s No ACK in CTO event!' %self)
 
         self._cwnd = 1 * LEDBAT.MSS
         self._cto = 2 * self._cto 
@@ -152,13 +161,13 @@ class LEDBAT(object):
         # meaning self._cto here. rt_measurements is [float]
 
         if not self._rt_measured:
-            # Set the params per RFC
+            # Set the params per [RFC6298]
             r = rt_measurements[0]
             self._srtt = r
             self._rttvar = r / 2
             self._cto = self._srtt + max([LEDBAT.G, LEDBAT.K * self._rttvar])
 
-            # Per RFC6298 p2.4
+            # Per [RFC6298] p2.4
             if self._cto < 1.0:
                 self._cto = 1.0
 

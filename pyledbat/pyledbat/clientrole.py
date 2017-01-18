@@ -76,3 +76,12 @@ class clientrole(baserole.baserole):
         if len(self._tests) == 0:
             logging.info('Last test removed. Closing client')
             asyncio.get_event_loop().stop()
+
+    def stop_all_tests(self):
+        """Request to stop all tests"""
+
+        # Make copy not to iterate over list being removed
+        tests_copy = self._tests.copy()
+        for test in tests_copy.values():
+            test.stop_test()
+            test.dispose()

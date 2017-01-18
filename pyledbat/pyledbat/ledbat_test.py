@@ -29,10 +29,13 @@ class LedbatTest(object):
         self._hdl_send_data = None      # Used to schedule data sending
         self._hdl_idle = None           # Idle check handle
 
-        self._ledbat = pyledbat.LEDBAT()
+        self._ledbat = pyledbat.LEDBAT(log_events = True)
         self._next_seq = 1
         self._set_outstanding = set()
         self._sent_ts = {}
+
+        self._cnt_loss = 0              # Each time ACK is not for the min({seq_outstanding}), this gets increased. Once its 3, loss happened
+        self._lost_seq = None           # Which piece to resend
         
         self.is_init = False
         self.local_channel = None
@@ -42,7 +45,9 @@ class LedbatTest(object):
         self._time_stop = None
         self._time_last_rx = None
 
-        self._num_to_send = 10000
+        self._chunks_sent = 0
+        self._chunks_resent = 0
+        self._chunks_acked = 0
 
         # Run periodic checks if object should be removed due to being idle
         self._hdl_idle = asyncio.get_event_loop().call_later(T_IDLE, self._check_for_idle)
@@ -174,20 +179,15 @@ class LedbatTest(object):
         logging.info('{} Starting test'.format(self))
         self._hdl_send_data = asyncio.get_event_loop().call_soon(self._try_next_send)
 
-    def _stop_test(self):
+    def stop_test(self):
         """Stop the test and print results"""
         
+        logging.info('%s Request to stop!' %self)
         self._time_stop = time.time()
-        logging.info('Sent %s in %s' %(self._num_to_send, self._time_stop - self._time_start))
-
-        self.dispose()
+        self._print_status()
         
     def _try_next_send(self):
         """Try sending next data piece"""
-
-        # Check if we are done
-        if self._next_seq > self._num_to_send:
-            self._stop_test()
 
         # Check we we can send now
         can_send, delay = self._ledbat.try_sending(SZ_DATA)
@@ -196,12 +196,38 @@ class LedbatTest(object):
             # Send and try again while working within congestion window
             self._build_and_send_data()
             self._hdl_send_data = asyncio.get_event_loop().call_soon(self._try_next_send)
+            
+            # Print stats
+            if self._next_seq % 500 == 0:
+                self._print_status()
         else:
-            self._hdl_send_data = asyncio.get_event_loop().call_soon(delay, self._try_next_send)
+            self._hdl_send_data = asyncio.get_event_loop().call_later(delay, self._try_next_send)
+
+    def _print_status(self):
+        """Print status during sending"""
+        
+        # Calculate values
+        test_time = time.time() - self._time_start
+        all_sent = self._chunks_sent + self._chunks_resent
+        tx_rate = all_sent / test_time
+        rx_rate = self._chunks_acked / test_time
+
+        # Print data
+        logging.info('Time: %.2f All Sent/Resent: %d/%d TxR: %.2f' %(test_time, all_sent, self._chunks_resent, tx_rate))
 
     def _build_and_send_data(self):
         """Build and send data message"""
         
+        # Check what next to send
+        resend = False
+        if self._lost_seq is not None:
+            this_seq = self._lost_seq
+            resend = True
+            self._lost_seq = None
+        else:
+            this_seq = self._next_seq
+            self._next_seq += 1
+
         # Build the header
         msg_data = bytearray()
         msg_data.extend(struct.pack(
@@ -209,7 +235,7 @@ class LedbatTest(object):
             2,
             self.remote_channel, 
             self.local_channel,
-            self._next_seq,
+            this_seq,
             int(time.time() * 1000000)))
         msg_data.extend(SZ_DATA * bytes([127]))
 
@@ -217,11 +243,19 @@ class LedbatTest(object):
         self._owner.send_data(msg_data, (self._remote_ip, self._remote_port))
 
         # Append to list of outstanding
-        self._sent_ts[self._next_seq] = time.time()
-        self._set_outstanding.add(self._next_seq)
+        # RTTs are not calculated from resends
+        if resend and this_seq in self._sent_ts:
+            # Delete stale data if present
+            del self._sent_ts[this_seq]
+        else:
+            self._sent_ts[this_seq] = time.time()
+        self._set_outstanding.add(this_seq)
 
-        # Increase the seq
-        self._next_seq += 1
+        # Update counters
+        if resend:
+            self._chunks_resent += 1
+        else:
+            self._chunks_sent += 1
 
     def data_received(self, data, receive_time):
         """Handle the DATA message for this test"""
@@ -276,10 +310,32 @@ class LedbatTest(object):
         # Extract the data
         (ack_from, ack_to, num_delays) = struct.unpack('>III', ack_data[0:12])
 
+        # Check if this is loss event
+        if any(self._set_outstanding):
+
+            # If we ack something higher than min outstanding, it might be a loss
+            min_outstanding = min(self._set_outstanding)
+            if ack_from > min_outstanding:
+                self._cnt_loss += 1
+
+            # Check if this is a loss event
+            if self._cnt_loss == 3:
+                # Declare loss to LEDBAT
+                self._ledbat.data_loss(True, SZ_DATA)
+                
+                # Request resend
+                self._lost_seq = min_outstanding
+
+                # Reset the counter
+                self._cnt_loss = 0
+                
         # Extract list of delays
         delays = []
         for n in range(0, num_delays):
-            delays.append(int(struct.unpack('>Q', ack_data[12+n*8:20+n*8])))
+            delays.append(int(struct.unpack('>Q', ack_data[12+n*8:20+n*8])[0]))
+
+        # Move to milliseconds from microseconds
+        delays = [x / 1000 for x in delays]
 
         # Extract RT measurements
         rtts = []
@@ -296,7 +352,10 @@ class LedbatTest(object):
                 del self._sent_ts[seq]
 
         # Feed new data to LEDBAT
-        self._ledbat.ack_received(delays, (ack_to - ack_from) * SZ_DATA, rtts)
+        self._ledbat.ack_received(delays, (ack_to - ack_from + 1) * SZ_DATA, rtts)
+
+        # Update stats
+        self._chunks_acked += ack_to - ack_from + 1
 
     def dispose(self):
         """Cleanup this test"""
