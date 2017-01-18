@@ -1,6 +1,7 @@
 import logging
 import struct
 import random
+import time
 
 import ledbat_test
 import baserole
@@ -15,40 +16,43 @@ class serverrole(baserole.baserole):
     def datagram_received(self, data, addr):
         """Process the received datagram"""
 
-        # Extract the message type
-        msg_type = struct.unpack('>I', data[0:4])[0]
+        # Take time msg received for later use
+        rx_time = time.time()
 
-        # Handle each type
-        if msg_type == 1:
-            self._handle_init(data, addr)
-        elif msg_type == 2:
-            self._handle_data(data, addr)
-        elif msg_type == 3:
-            self._handle_ack(data, addr)
+        # Extract the header
+        (msg_type, rem_ch, loc_ch) = struct.unpack('>III', data[0:12])
+
+        # Either init new test or get the running test
+        if msg_type == 1 and rem_ch == 0:
+            self._test_init_req(loc_ch, addr)
+            return
         else:
-            logging.warn('Discarded unknown message type ({}) from {}'
-                         .format(msg_type, addr))
+            # All other combinations must have remote_channel set
+            lt = self._tests.get(rem_ch)
 
-    def _handle_init(self, data, addr):
-        """Handle INIT MESSAGE"""
-        
-        # Extract remote and local channels
-        (rem_ch, loc_ch) = struct.unpack('>II', data[4:12])
-        
-        if rem_ch == 0:
-            # This is attempt to start a new test
-            lt = ledbat_test.LedbatTest(False, addr[0], addr[1], self)
-            lt.remote_channel = loc_ch
-            lt.local_channel = random.randint(1, 65534)
+            if lt is None:
+                logging.warn('Could not find ledbat test with our id: %s' %rem_ch)
+                return
 
-            # Add to a list of tests
-            self._tests[lt.local_channel] = lt
+            if msg_type == 1:
+                logging.warn('Server should not receive INIT-ACK')
+            elif msg_type == 2:
+                lt.data_received(data[12:], rx_time)
+            elif msg_type == 3:
+                logging.warn('Server should not receive ACK message')
+            else:
+                logging.warn('Discarded unknown message type (%s) from %s' %(msg_type, addr))
 
-            # Send INIT-ACK
-            lt.send_init_ack()
+    def _test_init_req(their_channel, addr):
+        """Initialize new test as requested"""
 
-    def _handle_ack(self, data, addr):
-        logging.warn('Server should not receive ACK')
+        # This is attempt to start a new test
+        lt = ledbat_test.LedbatTest(False, addr[0], addr[1], self)
+        lt.remote_channel = their_channel
+        lt.local_channel = random.randint(1, 65534)
 
-    def _handle_data(self, data, addr):
-        pass
+        # Add to a list of tests
+        self._tests[lt.local_channel] = lt
+
+        # Send INIT-ACK
+        lt.send_init_ack()

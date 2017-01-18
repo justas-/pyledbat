@@ -2,6 +2,7 @@ import asyncio
 import random
 import struct
 import logging
+import time
 
 import baserole
 import ledbat_test
@@ -15,19 +16,30 @@ class clientrole(baserole.baserole):
     def datagram_received(self, data, addr):
         """Process the received datagram"""
 
-        # Extract the message type
-        msg_type = struct.unpack('>I', data[0:4])[0]
+        # save time of reception
+        rx_time = time.time()
 
-        # Handle each type
-        if msg_type == 1:
-            self._handle_init(data, addr)
-        elif msg_type == 2:
-            self._handle_data(data, addr)
-        elif msg_type == 3:
-            self._handle_ack(data, addr)
+        # Extract the header
+        (msg_type, rem_ch, loc_ch) = struct.unpack('>III', data[0:12])
+
+        if msg_type == 1 and rem_ch == 0:
+            logging.warn('Client should not get INIT messages')
+            return
+
+        # Get the LEDBAT test
+        lt = self._tests.get(rem_ch)
+        if lt is None:
+            logging.warn('Could not find ledbat test with our id: %s' %rem_ch)
+            return
+
+        if msg_type == 1:       # INIT-ACK
+            lt.init_ack_received(loc_ch)
+        elif msg_type == 2:     # DATA
+            logging.warn('Client should not receive DATA messages')
+        elif msg_type == 3:     # ACK
+            lt.ack_received(data[12:], rx_time)
         else:
-            logging.warn('Discarded unknown message type ({}) from {}'
-                         .format(msg_type, addr))
+            logging.warn('Discarded unknown message type (%s) from %s' %(msg_type, addr))
 
     def _handle_init(self, data, addr):
 
@@ -43,12 +55,6 @@ class clientrole(baserole.baserole):
                 lt.init_ack_received(loc_ch)
             else:
                 logging.debug('Received INIT-ACK for unknown test %s' %rem_ch)
-
-    def _handle_data(self, data, addr):
-        logging.warn('Client should not receive DATA')
-
-    def _handle_ack(self, data, addr):
-        pass
         
     def start_client(self, remote_ip, remote_port):
         """Start the functioning of the client"""
