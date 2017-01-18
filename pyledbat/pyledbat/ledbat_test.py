@@ -19,6 +19,7 @@ class LedbatTest(object):
         self._remote_ip = remote_ip
         self._remote_port = remote_port
         self._owner = owner
+        self._debug = False
         
         self._num_init_sent = 0
         self._hdl_init_ack = None       # Receive INIT-ACK after ACK
@@ -29,7 +30,7 @@ class LedbatTest(object):
         self._hdl_send_data = None      # Used to schedule data sending
         self._hdl_idle = None           # Idle check handle
 
-        self._ledbat = pyledbat.LEDBAT(log_events = True)
+        self._ledbat = pyledbat.LEDBAT()
         self._next_seq = 1
         self._set_outstanding = set()
         self._sent_ts = {}
@@ -51,6 +52,11 @@ class LedbatTest(object):
 
         # Run periodic checks if object should be removed due to being idle
         self._hdl_idle = asyncio.get_event_loop().call_later(T_IDLE, self._check_for_idle)
+
+    def set_debug(self, debug):
+        """Enable the debug mode"""
+        self._debug = True
+        self._ledbat._log_events = True
 
     def start_init(self):
         """Start the test initialization procedure"""
@@ -198,7 +204,7 @@ class LedbatTest(object):
             self._hdl_send_data = asyncio.get_event_loop().call_soon(self._try_next_send)
             
             # Print stats
-            if self._next_seq % 500 == 0:
+            if self._chunks_sent % 250 == 0:
                 self._print_status()
         else:
             self._hdl_send_data = asyncio.get_event_loop().call_later(delay, self._try_next_send)
@@ -214,6 +220,10 @@ class LedbatTest(object):
 
         # Print data
         logging.info('Time: %.2f All Sent/Resent: %d/%d TxR: %.2f' %(test_time, all_sent, self._chunks_resent, tx_rate))
+
+        # Print debug data if enabled
+        if self._debug:
+            logging.debug('cwnd: %d; cto: %.2f; qd: %.2f; flsz: %d' %(self._ledbat._cwnd, self._ledbat._cto, self._ledbat._queuing_delay, self._ledbat._flightsize))
 
     def _build_and_send_data(self):
         """Build and send data message"""

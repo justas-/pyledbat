@@ -10,9 +10,6 @@ import ledbat_test
 class clientrole(baserole.baserole):
     """description of class"""
 
-    def __init__(self, udp_protocol):
-        return super().__init__(udp_protocol)
-
     def datagram_received(self, data, addr):
         """Process the received datagram"""
 
@@ -61,6 +58,11 @@ class clientrole(baserole.baserole):
 
         # Create instance of this test
         lt = ledbat_test.LedbatTest(True, remote_ip, remote_port, self)
+
+        # Enable debug if required
+        if self._args.debug:
+            lt.set_debug(True)
+
         lt.local_channel = random.randint(1, 65534)
 
         # Save in the list of tests

@@ -1,7 +1,10 @@
 class baserole(object):
     """description of class"""
 
-    def __init__(self, udp_protocol):
+    def __init__(self, args, udp_protocol):
+        # Save arguments for later usage
+        self._args = args
+
         # Save reference to the receiver
         self._udp_protocol = udp_protocol
 

@@ -26,6 +26,10 @@ def main(params):
     else:
         logging.info('Starting LEDBAT test server.')
 
+    if args.debug:
+        logging.getLogger().setLevel(logging.DEBUG)
+        logging.debug('Debug output enabled!')
+
     # Init the events loop and udp transport
     loop = asyncio.get_event_loop()
     listen = loop.create_datagram_endpoint(udpserver.udpserver, local_addr=('0.0.0.0', UDP_PORT))
@@ -41,11 +45,11 @@ def main(params):
     # Start the instance based on the type
     if args.role == 'client':
         # Run the client
-        client = clientrole.clientrole(protocol)
+        client = clientrole.clientrole(args, protocol)
         client.start_client(args.remote, UDP_PORT)
     else:
         # Do the Server thing
-        server = serverrole.serverrole(protocol)
+        server = serverrole.serverrole(args, protocol)
         server.start_server()
 
     # Wait for Ctrl-C
@@ -67,6 +71,7 @@ if __name__ == '__main__':
 
     parser.add_argument('--role', help='Role of the instance {client|server}', default='server')
     parser.add_argument('--remote', help='IP Address of the test server')
+    parser.add_argument('--debug', help='Enable verbose output', action='store_true')
 
     args = parser.parse_args()
 
