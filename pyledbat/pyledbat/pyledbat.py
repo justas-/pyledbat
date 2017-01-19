@@ -33,6 +33,12 @@ class LEDBAT(object):
         self._last_ack_received = None                  # When was the last ACK received
         self._sent_data = []                            # Used to track when and how much is sent values -> (time, data_len)
 
+        # Swiftish
+        self.last_send_time = None                      # Last data out timestamp
+        self._next_send_time = None                     # Next time data should go out
+        self._last_data_time = None                     # Last time data out was requested
+        self._reschedule_delay = 0
+
         # RFC6298
         self._rt_measured = False                       # Flag to check if the first measurement was done
         self._srtt = None
@@ -100,50 +106,50 @@ class LEDBAT(object):
             self._flightsize = self._flightsize - loss_size
 
     def try_sending(self, data_len):
-        """Check if data can be sent"""
+        """Check if data can be sent. If data can be sent now, (True, None) will be returned.
+           If data cannot be sent now - (False, time) will be returned. Send after time.
+           After data was sent and new data piece is ready - start over.
+        """
         
-        # Per [RFC6817] use cwnd to gate the amount of data
-        # that is sent to the network in one RTT.
+        # Swiftish implementation
+        t_now = time.time()
+
+        # Last client wanted to send data
+        self._last_data_time = t_now
 
         # Check for extreme congestion
-        if self._last_ack_received != None and self._flightsize > 0 and time.time() - self._last_ack_received > self._cto:
+        if self._last_ack_received != None and self._flightsize > 0 and t_now - self._last_ack_received > self._cto:
             self._no_ack_in_cto()
 
         # Check if we have any RT measurements? (Slow start some-day)
         if self._rtt is None:
             # Send now
             self._flightsize += data_len
-            self._sent_data.append((time.time(), data_len))
+            self._next_send_time = t_now
             return (True, None)
 
-        # Per [RFC6817] p2.4.2 cwnd is the amount of data that is allowed to
-        # be outstanding in an RTT
+        # Check for Reschedule delay
+        if self.last_send_time is not None and self._next_send_time is not None:
+            if self.last_send_time > self._next_send_time and self._next_send_time < t_now:
+                self._reschedule_delay = t_now - self._next_send_time
 
-        # Calculate data sent in last RTT
-        sends_in_rtt = []
-        cutoff_time = time.time() - self._rtt
-        sent_data = 0       # Flightsize during last RTT
-
-        for entry in self._sent_data:
-            if entry[0] > cutoff_time:  # Sent AFTER cutoff
-                sent_data += entry[1]
-                sends_in_rtt.append(entry)
-
-        # Prevent list for growing too big
-        self._sent_data = sends_in_rtt
-
-        # Check if the flightsize in last RTT is less than cwnd
-        if sent_data + data_len <= self._cwnd:
-            # Data can be sent to the socket now
-            self._flightsize += data_len
-            self._sent_data.append((time.time(), data_len))
-            return (True, None)
-        
+        # Get next send time
+        send_interval = self._rtt / (self._cwnd / data_len)
+        if self._flightsize + data_len < self._cwnd or self._cwnd >= LEDBAT.MIN_CWND * LEDBAT.MSS:
+            self._next_send_time = self._last_data_time + send_interval - self._reschedule_delay
         else:
-            # Calculate backoff when retry can be made (for this data size)
-            # This it TODO to define best way to calc
-            backoff = self._cto / 20
-            return (False, backoff)
+            # ??
+            self._next_send_time = self._last_data_time + 1.0   # X + ack_timeout()
+
+        t_dif = self._next_send_time - t_now
+        if t_dif <= 0:
+            # Send now
+            self._flightsize += data_len
+            self._next_send_time = t_now
+            return (True, None)
+        else:
+            # Send later
+            return (False, t_dif)
 
     def _no_ack_in_cto(self):
         """Update CWND if no ACK was received in CTO"""

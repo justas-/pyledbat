@@ -20,6 +20,7 @@ class LedbatTest(object):
         self._remote_port = remote_port
         self._owner = owner
         self._debug = False
+        self._print_every = 1000        # How often to print status
         
         self._num_init_sent = 0
         self._hdl_init_ack = None       # Receive INIT-ACK after ACK
@@ -31,6 +32,7 @@ class LedbatTest(object):
         self._hdl_idle = None           # Idle check handle
 
         self._ledbat = pyledbat.LEDBAT()
+        self._direct_send = False       # Send immediately before checking next
         self._next_seq = 1
         self._set_outstanding = set()
         self._sent_ts = {}
@@ -195,25 +197,45 @@ class LedbatTest(object):
     def _try_next_send(self):
         """Try sending next data piece"""
 
+        # If we were delayed - now send immediately
+        if self._direct_send:
+            
+            # Print stats
+            if self._chunks_sent % self._print_every == 0:
+                self._print_status()
+
+            self._build_and_send_data()
+            self._direct_send = False
+            self._hdl_send_data = asyncio.get_event_loop().call_soon(self._try_next_send)
+            return
+
         # Check we we can send now
         can_send, delay = self._ledbat.try_sending(SZ_DATA)
 
         if can_send:
-            # Send and try again while working within congestion window
+            # Print stats
+            if self._chunks_sent % self._print_every == 0:
+                self._print_status()
+
+            # If we can send now - send and try immediately again
             self._build_and_send_data()
             self._hdl_send_data = asyncio.get_event_loop().call_soon(self._try_next_send)
             
-            # Print stats
-            if self._chunks_sent % 250 == 0:
-                self._print_status()
         else:
+            # Send after waiting and then try again
             self._hdl_send_data = asyncio.get_event_loop().call_later(delay, self._try_next_send)
+            self._direct_send = True
 
     def _print_status(self):
         """Print status during sending"""
         
         # Calculate values
         test_time = time.time() - self._time_start
+
+        # Prevent div/0 early on
+        if test_time == 0:
+            return
+
         all_sent = self._chunks_sent + self._chunks_resent
         tx_rate = all_sent / test_time
         rx_rate = self._chunks_acked / test_time
@@ -238,6 +260,9 @@ class LedbatTest(object):
             this_seq = self._next_seq
             self._next_seq += 1
 
+        # Get time now
+        t_now = time.time()
+
         # Build the header
         msg_data = bytearray()
         msg_data.extend(struct.pack(
@@ -246,11 +271,14 @@ class LedbatTest(object):
             self.remote_channel, 
             self.local_channel,
             this_seq,
-            int(time.time() * 1000000)))
+            int(t_now * 1000000)))
         msg_data.extend(SZ_DATA * bytes([127]))
 
         # Send the message
         self._owner.send_data(msg_data, (self._remote_ip, self._remote_port))
+
+        # Update LEDBAT
+        self._ledbat.last_send_time = t_now
 
         # Append to list of outstanding
         # RTTs are not calculated from resends
@@ -258,7 +286,7 @@ class LedbatTest(object):
             # Delete stale data if present
             del self._sent_ts[this_seq]
         else:
-            self._sent_ts[this_seq] = time.time()
+            self._sent_ts[this_seq] = t_now
         self._set_outstanding.add(this_seq)
 
         # Update counters
