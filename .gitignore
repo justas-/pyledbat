@@ -241,4 +241,7 @@ ModelManifest.xml
 # FAKE - F# Make
 .fake/
 
-pyledbat/pyledbat/__pycache__
+# Python cache files
+pyledbat/__pycache__
+pyledbat/ledbat/__pycache__
+pyledbat/testledbat/__pycache__
