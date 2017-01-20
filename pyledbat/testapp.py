@@ -19,10 +19,6 @@ def main():
     # Parse the command line params
     args = parser.parse_args()
 
-    args.role = 'client'
-    args.remote = '10.51.32.211'
-    args.debug = True
-
     # Run the test
     test_ledbat(args)
 
