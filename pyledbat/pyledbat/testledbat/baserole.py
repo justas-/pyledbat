@@ -1,10 +1,11 @@
-class baserole(object):
-    """description of class"""
+"""Base class that is extended by Client and Server roles"""
 
-    def __init__(self, args, udp_protocol):
-        # Save arguments for later usage
-        self._args = args
+class BaseRole(object):
+    """BaseRole with minimal actions what are common
+       for both client and the server.
+    """
 
+    def __init__(self, udp_protocol):
         # Save reference to the receiver
         self._udp_protocol = udp_protocol
 
@@ -15,6 +16,7 @@ class baserole(object):
         self._tests = {}
 
     def datagram_received(self, data, addr):
+        """Callback on received datagram"""
         pass
 
     def send_data(self, data, addr):

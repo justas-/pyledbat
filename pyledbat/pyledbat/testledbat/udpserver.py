@@ -21,7 +21,7 @@ class udpserver(asyncio.DatagramProtocol):
         self._receiver.datagram_received(data, addr)
 
     def error_received(self, exc):
-        logging.warn('Error received: %s' %exc)
+        logging.warning('Error received: %s' %exc)
 
     def connection_lost(self, exc):
         logging.error('Connection lost: %s' %exc)

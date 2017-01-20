@@ -1,7 +1,6 @@
 import time
 import datetime
 import math
-import logging
 
 class LEDBAT(object):
     CURRENT_FILTER = 8          # Number of elements in current delay filter
@@ -19,7 +18,7 @@ class LEDBAT(object):
     ALPHA = 0.125               # alpha, beta per Jacobson, V. and M. Karels, "Congestion Avoidance and Control
     BETA = 0.25
 
-    def __init__(self, log_events = False):
+    def __init__(self):
         """Initialize the instance"""
         self._current_delays = LEDBAT.CURRENT_FILTER * [1000000]
         self._base_delays = LEDBAT.BASE_HISTORY * [float('inf')]
@@ -43,8 +42,6 @@ class LEDBAT(object):
         self._rt_measured = False                       # Flag to check if the first measurement was done
         self._srtt = None
         self._rttvar = None
-
-        self._log_events = log_events                   # Prevent writing to logger
 
     def ack_received(self, delays, bytes_acked=None, rt_measurements = None):
         """Parse the received delay sample(s)
@@ -87,10 +84,6 @@ class LEDBAT(object):
             if time.time() - self._last_data_loss < self._rtt:
                 # At most once per RTT
                 return
-
-        # Log info
-        if self._log_events:
-            logging.info('%s Data loss event!' %self)
 
         # Save time when last dataloss event happened
         self._last_data_loss = time.time()
@@ -153,9 +146,6 @@ class LEDBAT(object):
 
     def _no_ack_in_cto(self):
         """Update CWND if no ACK was received in CTO"""
-
-        if self._log_events:
-            logging.info('%s No ACK in CTO event!' %self)
 
         self._cwnd = 1 * LEDBAT.MSS
         self._cto = 2 * self._cto 

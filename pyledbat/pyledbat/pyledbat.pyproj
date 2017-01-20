@@ -5,7 +5,7 @@
     <SchemaVersion>2.0</SchemaVersion>
     <ProjectGuid>6dab62b0-bcdc-4435-88bc-12662d9d8726</ProjectGuid>
     <ProjectHome>.</ProjectHome>
-    <StartupFile>testnode.py</StartupFile>
+    <StartupFile>testapp.py</StartupFile>
     <SearchPath>
     </SearchPath>
     <WorkingDirectory>.</WorkingDirectory>
@@ -22,25 +22,35 @@
     <EnableUnmanagedDebugging>false</EnableUnmanagedDebugging>
   </PropertyGroup>
   <ItemGroup>
-    <Compile Include="baserole.py">
+    <Compile Include="testledbat\baserole.py">
       <SubType>Code</SubType>
     </Compile>
-    <Compile Include="clientrole.py">
+    <Compile Include="testledbat\clientrole.py">
       <SubType>Code</SubType>
     </Compile>
-    <Compile Include="ledbat_test.py">
+    <Compile Include="ledbat\__init__.py">
       <SubType>Code</SubType>
     </Compile>
-    <Compile Include="pyledbat.py" />
-    <Compile Include="serverrole.py">
+    <Compile Include="testledbat\ledbat_test.py">
       <SubType>Code</SubType>
     </Compile>
-    <Compile Include="testnode.py">
+    <Compile Include="ledbat\pyledbat.py" />
+    <Compile Include="testledbat\serverrole.py">
       <SubType>Code</SubType>
     </Compile>
-    <Compile Include="udpserver.py">
+    <Compile Include="testledbat\__init__.py">
       <SubType>Code</SubType>
     </Compile>
+    <Compile Include="testapp.py">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="testledbat\udpserver.py">
+      <SubType>Code</SubType>
+    </Compile>
+  </ItemGroup>
+  <ItemGroup>
+    <Folder Include="ledbat\" />
+    <Folder Include="testledbat\" />
   </ItemGroup>
   <PropertyGroup>
     <VisualStudioVersion Condition="'$(VisualStudioVersion)' == ''">10.0</VisualStudioVersion>

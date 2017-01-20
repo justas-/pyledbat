@@ -3,7 +3,7 @@ import asyncio
 import struct
 import time
 
-import pyledbat
+from ledbat import pyledbat
 
 T_INIT_ACK = 5.0    # Time to wait for INIT-ACK
 T_INIT_DATA = 5.0   # Time to wait for DATA after sending INIT-ACK
@@ -19,9 +19,8 @@ class LedbatTest(object):
         self._remote_ip = remote_ip
         self._remote_port = remote_port
         self._owner = owner
-        self._debug = False
         self._print_every = 1000        # How often to print status
-        
+
         self._num_init_sent = 0
         self._hdl_init_ack = None       # Receive INIT-ACK after ACK
 
@@ -39,7 +38,7 @@ class LedbatTest(object):
 
         self._cnt_loss = 0              # Each time ACK is not for the min({seq_outstanding}), this gets increased. Once its 3, loss happened
         self._lost_seq = None           # Which piece to resend
-        
+
         self.is_init = False
         self.local_channel = None
         self.remote_channel = None
@@ -54,11 +53,6 @@ class LedbatTest(object):
 
         # Run periodic checks if object should be removed due to being idle
         self._hdl_idle = asyncio.get_event_loop().call_later(T_IDLE, self._check_for_idle)
-
-    def set_debug(self, debug):
-        """Enable the debug mode"""
-        self._debug = True
-        self._ledbat._log_events = True
 
     def start_init(self):
         """Start the test initialization procedure"""
@@ -244,8 +238,7 @@ class LedbatTest(object):
         logging.info('Time: %.2f All Sent/Resent: %d/%d TxR: %.2f' %(test_time, all_sent, self._chunks_resent, tx_rate))
 
         # Print debug data if enabled
-        if self._debug:
-            logging.debug('cwnd: %d; cto: %.2f; qd: %.2f; flsz: %d' %(self._ledbat._cwnd, self._ledbat._cto, self._ledbat._queuing_delay, self._ledbat._flightsize))
+        logging.debug('cwnd: %d; cto: %.2f; qd: %.2f; flsz: %d' %(self._ledbat._cwnd, self._ledbat._cto, self._ledbat._queuing_delay, self._ledbat._flightsize))
 
     def _build_and_send_data(self):
         """Build and send data message"""

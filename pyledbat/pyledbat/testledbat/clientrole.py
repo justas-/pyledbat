@@ -4,10 +4,10 @@ import struct
 import logging
 import time
 
-import baserole
-import ledbat_test
+from testledbat import baserole
+from testledbat import ledbat_test
 
-class clientrole(baserole.baserole):
+class ClientRole(baserole.BaseRole):
     """description of class"""
 
     def datagram_received(self, data, addr):
@@ -20,56 +20,36 @@ class clientrole(baserole.baserole):
         (msg_type, rem_ch, loc_ch) = struct.unpack('>III', data[0:12])
 
         if msg_type == 1 and rem_ch == 0:
-            logging.warn('Client should not get INIT messages')
+            logging.warning('Client should not get INIT messages')
             return
 
         # Get the LEDBAT test
-        lt = self._tests.get(rem_ch)
-        if lt is None:
-            logging.warn('Could not find ledbat test with our id: %s' %rem_ch)
+        ledbattest = self._tests.get(rem_ch)
+        if ledbattest is None:
+            logging.warning('Could not find ledbat test with our id: %s', rem_ch)
             return
 
         if msg_type == 1:       # INIT-ACK
-            lt.init_ack_received(loc_ch)
+            ledbattest.init_ack_received(loc_ch)
         elif msg_type == 2:     # DATA
-            logging.warn('Client should not receive DATA messages')
+            logging.warning('Client should not receive DATA messages')
         elif msg_type == 3:     # ACK
-            lt.ack_received(data[12:], rx_time)
+            ledbattest.ack_received(data[12:], rx_time)
         else:
-            logging.warn('Discarded unknown message type (%s) from %s' %(msg_type, addr))
+            logging.warning('Discarded unknown message type (%s) from %s' % (msg_type, addr))
 
-    def _handle_init(self, data, addr):
-
-        # Extract remote and local channels
-        (rem_ch, loc_ch) = struct.unpack('>II', data[4:12])
-        
-        if rem_ch == 0:
-            logging.debug('Client should not handle incomming tests!')
-        else:
-            # Ensure we have this test
-            lt = self._tests.get(rem_ch)
-            if lt is not None:
-                lt.init_ack_received(loc_ch)
-            else:
-                logging.debug('Received INIT-ACK for unknown test %s' %rem_ch)
-        
     def start_client(self, remote_ip, remote_port):
         """Start the functioning of the client"""
 
         # Create instance of this test
-        lt = ledbat_test.LedbatTest(True, remote_ip, remote_port, self)
-
-        # Enable debug if required
-        if self._args.debug:
-            lt.set_debug(True)
-
-        lt.local_channel = random.randint(1, 65534)
+        ledbattest = ledbat_test.LedbatTest(True, remote_ip, remote_port, self)
+        ledbattest.local_channel = random.randint(1, 65534)
 
         # Save in the list of tests
-        self._tests[lt.local_channel] = lt
+        self._tests[ledbattest.local_channel] = ledbattest
 
         # Send the init message to the server
-        lt.start_init()
+        ledbattest.start_init()
 
     def remove_test(self, test):
         """Extend remove_test to close client when the last test is removed"""

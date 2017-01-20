@@ -3,10 +3,10 @@ import struct
 import random
 import time
 
-import ledbat_test
-import baserole
+from testledbat import ledbat_test
+from testledbat import baserole
 
-class serverrole(baserole.baserole):
+class ServerRole(baserole.BaseRole):
     """description of class"""
 
     def start_server(self):
@@ -31,17 +31,17 @@ class serverrole(baserole.baserole):
             lt = self._tests.get(rem_ch)
 
             if lt is None:
-                logging.warn('Could not find ledbat test with our id: %s' %rem_ch)
+                logging.warning('Could not find ledbat test with our id: %s' %rem_ch)
                 return
 
             if msg_type == 1:
-                logging.warn('Server should not receive INIT-ACK')
+                logging.warning('Server should not receive INIT-ACK')
             elif msg_type == 2:
                 lt.data_received(data[12:], rx_time)
             elif msg_type == 3:
-                logging.warn('Server should not receive ACK message')
+                logging.warning('Server should not receive ACK message')
             else:
-                logging.warn('Discarded unknown message type (%s) from %s' %(msg_type, addr))
+                logging.warning('Discarded unknown message type (%s) from %s' %(msg_type, addr))
 
     def _test_init_req(self, their_channel, addr):
         """Initialize new test as requested"""
