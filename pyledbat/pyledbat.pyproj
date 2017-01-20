@@ -22,6 +22,9 @@
     <EnableUnmanagedDebugging>false</EnableUnmanagedDebugging>
   </PropertyGroup>
   <ItemGroup>
+    <Compile Include="ledbat\swiftledbat.py">
+      <SubType>Code</SubType>
+    </Compile>
     <Compile Include="testledbat\baserole.py">
       <SubType>Code</SubType>
     </Compile>
@@ -34,7 +37,7 @@
     <Compile Include="testledbat\ledbat_test.py">
       <SubType>Code</SubType>
     </Compile>
-    <Compile Include="ledbat\pyledbat.py" />
+    <Compile Include="ledbat\baseledbat.py" />
     <Compile Include="testledbat\serverrole.py">
       <SubType>Code</SubType>
     </Compile>

@@ -39,7 +39,7 @@ class ClientRole(baserole.BaseRole):
             logging.warning('Discarded unknown message type (%s) from %s' % (msg_type, addr))
 
     def start_client(self, remote_ip, remote_port):
-        """Start the functioning of the client"""
+        """Start the functioning of the client by starting a new test"""
 
         # Create instance of this test
         ledbattest = ledbat_test.LedbatTest(True, remote_ip, remote_port, self)

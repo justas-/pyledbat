@@ -3,7 +3,7 @@ import asyncio
 import struct
 import time
 
-from ledbat import pyledbat
+from ledbat import swiftledbat
 
 T_INIT_ACK = 5.0    # Time to wait for INIT-ACK
 T_INIT_DATA = 5.0   # Time to wait for DATA after sending INIT-ACK
@@ -30,7 +30,7 @@ class LedbatTest(object):
         self._hdl_send_data = None      # Used to schedule data sending
         self._hdl_idle = None           # Idle check handle
 
-        self._ledbat = pyledbat.LEDBAT()
+        self._ledbat = swiftledbat.SwiftLedbat()
         self._direct_send = False       # Send immediately before checking next
         self._next_seq = 1
         self._set_outstanding = set()
@@ -232,7 +232,6 @@ class LedbatTest(object):
 
         all_sent = self._chunks_sent + self._chunks_resent
         tx_rate = all_sent / test_time
-        rx_rate = self._chunks_acked / test_time
 
         # Print data
         logging.info('Time: %.2f All Sent/Resent: %d/%d TxR: %.2f' %(test_time, all_sent, self._chunks_resent, tx_rate))
