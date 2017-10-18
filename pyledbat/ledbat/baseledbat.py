@@ -50,7 +50,7 @@ class BaseLedbat(object):
         # Update values
         self._queuing_delay = self._filter_alg(self._current_delays) - min(self._base_delays)
         off_target = (BaseLedbat.TARGET - self._queuing_delay) / BaseLedbat.TARGET
-        self._cwnd += BaseLedbat.GAIN * off_target * bytes_acked * BaseLedbat.MSS / self._cwnd
+        self._cwnd += int(BaseLedbat.GAIN * off_target * bytes_acked * BaseLedbat.MSS / self._cwnd)
         max_allowed_cwnd = self._flightsize + BaseLedbat.ALLOWED_INCREASE * BaseLedbat.MSS
         self._cwnd = min([self._cwnd, max_allowed_cwnd])
         self._cwnd = max([self._cwnd, BaseLedbat.MIN_CWND * BaseLedbat.MSS])
@@ -79,7 +79,7 @@ class BaseLedbat(object):
         # Reduce the congestion window size
         self._cwnd = min([
             self._cwnd,
-            max([self._cwnd / 2, BaseLedbat.MIN_CWND * BaseLedbat.MSS])
+            int(max([self._cwnd / 2, BaseLedbat.MIN_CWND * BaseLedbat.MSS]))
         ])
 
         # Account for data in-flight

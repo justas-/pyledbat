@@ -463,6 +463,10 @@ class LedbatTest(object):
             self._hdl_idle.cancel()
             self._hdl_idle = None
 
+        if self._hdl_log is not None:
+            self._hdl_log.cancel()
+            self._hdl_log = None
+
         # Remove from the owner
         self._owner.remove_test(self)
 
