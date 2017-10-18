@@ -1,3 +1,8 @@
+"""
+Server class for LEDBAT test. Server acts as a "dumb" client by ACKIN data only.
+All protocol intelligence is in the client. One server can be replying to multipe
+clients concurrently.
+"""
 import logging
 import struct
 import random

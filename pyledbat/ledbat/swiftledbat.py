@@ -31,6 +31,12 @@ class SwiftLedbat(baseledbat.BaseLedbat):
         # Init the base class
         super().__init__()
 
+    def data_sent(self, data_len):
+        """Inform LEDBAT about data sent to the network"""
+        
+        self._flightsize += data_len
+        self._next_send_time = time.time()
+
     def try_sending(self, data_len):
         """Check if data can be sent. If data can be sent now, (True, None) will be returned.
            If data cannot be sent now - (False, time) will be returned. Send after time.
@@ -64,22 +70,22 @@ class SwiftLedbat(baseledbat.BaseLedbat):
                 self._reschedule_delay = t_now - self._next_send_time
 
         # Get next send time
-        send_interval = self._rtt / (self._cwnd / data_len)
-        if (self._flightsize + data_len < self._cwnd or 
-            self._cwnd >= baseledbat.BaseLedbat.MIN_CWND * baseledbat.BaseLedbat.MSS):
-            
-            # Calculate when next send can happen (might be in the past)
-            self._next_send_time = self._last_data_time + send_interval - self._reschedule_delay
-        else:
-            # ??
-            self._next_send_time = self._last_data_time + 1.0   # X + ack_timeout()
+        #send_interval = self._rtt / (self._cwnd / data_len)
+        #if (self._flightsize + data_len < self._cwnd or 
+        #    self._cwnd >= baseledbat.BaseLedbat.MIN_CWND * baseledbat.BaseLedbat.MSS):
+        #    
+        #    # Calculate when next send can happen (might be in the past)
+        #    self._next_send_time = self._last_data_time + send_interval - self._reschedule_delay
+        #else:
+        #    # ??
+        #    self._next_send_time = self._last_data_time + 1.0   # X + ack_timeout()
 
-        t_dif = self._next_send_time - t_now
-        if t_dif <= 0:
-            # Send now
-            self._flightsize += data_len
-            self._next_send_time = t_now
-            return (True, None)
-        else:
-            # Send later
-            return (False, t_dif)
+        #t_dif = self._next_send_time - t_now
+        #if t_dif <= 0:
+        #    # Send now
+        #    self._flightsize += data_len
+        #    self._next_send_time = t_now
+        #    return (True, None)
+        #else:
+        #    # Send later
+        #    return (False, t_dif)

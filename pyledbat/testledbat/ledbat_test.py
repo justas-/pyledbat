@@ -1,15 +1,22 @@
+"""
+LedbatTest - class representing a single test instance and used in both client
+and server.
+"""
 import logging
 import asyncio
 import struct
 import time
 
-from ledbat import swiftledbat
+from ledbat import simpleledbat
+from .inflight_track import InflightTrack
 
 T_INIT_ACK = 5.0    # Time to wait for INIT-ACK
 T_INIT_DATA = 5.0   # Time to wait for DATA after sending INIT-ACK
 T_IDLE = 10.0       # Time to wait when idle before destroying
 
 SZ_DATA = 1024      # Data size in each message
+OOO_THRESH = 3      # When to declare dataloss
+PRINT_EVERY = 5000   # Print debug every this many packets sent
 
 class LedbatTest(object):
     """An instance representing a single LEDBAT test"""
@@ -19,7 +26,7 @@ class LedbatTest(object):
         self._remote_ip = remote_ip
         self._remote_port = remote_port
         self._owner = owner
-        self._print_every = 1000        # How often to print status
+        self._ev_loop = asyncio.get_event_loop()
 
         self._num_init_sent = 0
         self._hdl_init_ack = None       # Receive INIT-ACK after ACK
@@ -30,14 +37,14 @@ class LedbatTest(object):
         self._hdl_send_data = None      # Used to schedule data sending
         self._hdl_idle = None           # Idle check handle
 
-        self._ledbat = swiftledbat.SwiftLedbat()
+        self._ledbat = simpleledbat.SimpleLedbat()
         self._direct_send = False       # Send immediately before checking next
         self._next_seq = 1
         self._set_outstanding = set()
         self._sent_ts = {}
 
-        self._cnt_loss = 0              # Each time ACK is not for the min({seq_outstanding}), this gets increased. Once its 3, loss happened
-        self._lost_seq = None           # Which piece to resend
+        self._inflight = InflightTrack()
+        self._cnt_ooo = 0               # Count of Out-of-Order packets
 
         self.is_init = False
         self.local_channel = None
@@ -52,7 +59,7 @@ class LedbatTest(object):
         self._chunks_acked = 0
 
         # Run periodic checks if object should be removed due to being idle
-        self._hdl_idle = asyncio.get_event_loop().call_later(T_IDLE, self._check_for_idle)
+        self._hdl_idle = self._ev_loop.call_later(T_IDLE, self._check_for_idle)
 
     def start_init(self):
         """Start the test initialization procedure"""
@@ -67,7 +74,7 @@ class LedbatTest(object):
         self._build_and_send_init()
 
         # Schedule re-sender / disposer
-        self._hdl_init_ack = asyncio.get_event_loop().call_later(T_INIT_ACK, self._check_for_idle)
+        self._hdl_init_ack = self._ev_loop.call_later(T_INIT_ACK, self._check_for_idle)
 
     def _check_for_idle(self):
         """Periodic check to see if idle test should be removed"""
@@ -76,7 +83,7 @@ class LedbatTest(object):
             logging.info('%s Destroying due to being idle' %self)
             self.dispose()
         else:
-            self._hdl_init_ack = asyncio.get_event_loop().call_later(T_INIT_ACK, self._check_for_idle)
+            self._hdl_init_ack = self._ev_loop.call_later(T_INIT_ACK, self._check_for_idle)
 
     def _build_and_send_init(self):
         """Build and send the INIT message"""
@@ -102,7 +109,7 @@ class LedbatTest(object):
         # Keep resending INIT for up to 3 times
         if self._num_init_sent < 3:
             self._build_and_send_init()
-            self._hdl_init_ack = asyncio.get_event_loop().call_later(T_INIT_ACK, self._init_ack_missing)
+            self._hdl_init_ack = self._ev_loop.call_later(T_INIT_ACK, self._init_ack_missing)
         else:
             # After 3 time, dispose the test
             logging.info('{} INI-ACK missing!'.format(self))
@@ -115,7 +122,7 @@ class LedbatTest(object):
         self._build_and_send_init_ack()
 
         # Start timer to wait for data
-        self._hdl_act_to_data = asyncio.get_event_loop().call_later(T_INIT_DATA, self._init_data_missing)
+        self._hdl_act_to_data = self._ev_loop.call_later(T_INIT_DATA, self._init_data_missing)
 
     def _init_data_missing(self):
         """Called when DATA is not received after INIT-ACK"""
@@ -123,7 +130,7 @@ class LedbatTest(object):
         # Keep resending INIT-ACK up to 3 times
         if self._num_init_ack_sent < 3:
             self._build_and_send_init_ack()
-            self._hdl_act_to_data = asyncio.get_event_loop().call_later(T_INIT_DATA, self._init_data_missing)
+            self._hdl_act_to_data = self._ev_loop.call_later(T_INIT_DATA, self._init_data_missing)
         else:
             # After 3 times dispose
             logging.info('{} DATA missing after 3 INIT-ACK'.format(self))
@@ -179,7 +186,7 @@ class LedbatTest(object):
 
         # Scedule sending event on the loop
         logging.info('{} Starting test'.format(self))
-        self._hdl_send_data = asyncio.get_event_loop().call_soon(self._try_next_send)
+        self._hdl_send_data = self._ev_loop.call_soon(self._try_next_send)
 
     def stop_test(self):
         """Stop the test and print results"""
@@ -189,36 +196,23 @@ class LedbatTest(object):
         self._print_status()
         
     def _try_next_send(self):
-        """Try sending next data piece"""
+        """Try sending next data segment. This implementation sends data
+           as fast as possible using polling. A more elegant solution using
+           semaphore would be nicer.
+        """
 
-        # If we were delayed - now send immediately
-        if self._direct_send:
+        # TODO: Use semaphore(?) to release sending instead of polling.
+
+        if self._ledbat.cwnd - self._ledbat.flightsize >= SZ_DATA:
+            self._build_and_send_data()
+            self._ledbat.data_sent(SZ_DATA)
+            self._hdl_send_data = self._ev_loop.call_soon(self._try_next_send)
             
             # Print stats
-            if self._chunks_sent % self._print_every == 0:
+            if self._chunks_sent % PRINT_EVERY == 0:
                 self._print_status()
-
-            self._build_and_send_data()
-            self._direct_send = False
-            self._hdl_send_data = asyncio.get_event_loop().call_soon(self._try_next_send)
-            return
-
-        # Check we we can send now
-        can_send, delay = self._ledbat.try_sending(SZ_DATA)
-
-        if can_send:
-            # Print stats
-            if self._chunks_sent % self._print_every == 0:
-                self._print_status()
-
-            # If we can send now - send and try immediately again
-            self._build_and_send_data()
-            self._hdl_send_data = asyncio.get_event_loop().call_soon(self._try_next_send)
-            
         else:
-            # Send after waiting and then try again
-            self._hdl_send_data = asyncio.get_event_loop().call_later(delay, self._try_next_send)
-            self._direct_send = True
+            self._hdl_send_data = self._ev_loop.call_soon(self._try_next_send)
 
     def _print_status(self):
         """Print status during sending"""
@@ -234,26 +228,17 @@ class LedbatTest(object):
         tx_rate = all_sent / test_time
 
         # Print data
-        logging.info('Time: %.2f All Sent/Resent: %d/%d TxR: %.2f' %(test_time, all_sent, self._chunks_resent, tx_rate))
+        logging.info('Time: %.2f TX/ACK/RES: %s/%s/%s TxR: %.2f',
+                     test_time, self._chunks_sent, self._chunks_acked,
+                     self._chunks_resent, tx_rate)
 
         # Print debug data if enabled
-        logging.debug('cwnd: %d; cto: %.2f; qd: %.2f; flsz: %d' %(self._ledbat._cwnd, self._ledbat._cto, self._ledbat._queuing_delay, self._ledbat._flightsize))
+        logging.debug('cwnd: %d; flsz: %d; qd: %.2f; rtt: %.6f;', 
+                      self._ledbat.cwnd, self._ledbat.flightsize, 
+                      self._ledbat.queuing_delay, self._ledbat.rtt)
 
-    def _build_and_send_data(self):
-        """Build and send data message"""
-        
-        # Check what next to send
-        resend = False
-        if self._lost_seq is not None:
-            this_seq = self._lost_seq
-            resend = True
-            self._lost_seq = None
-        else:
-            this_seq = self._next_seq
-            self._next_seq += 1
-
-        # Get time now
-        t_now = time.time()
+    def _send_data(self, seq_num, time_sent, data):
+        """Frame given data and send it"""
 
         # Build the header
         msg_data = bytearray()
@@ -262,30 +247,33 @@ class LedbatTest(object):
             2,
             self.remote_channel, 
             self.local_channel,
-            this_seq,
-            int(t_now * 1000000)))
-        msg_data.extend(SZ_DATA * bytes([127]))
+            seq_num,
+            int(time_sent * 1000000)))
+
+        if data is None:
+            msg_data.extend(SZ_DATA * bytes([127]))
+        else:
+            msg_data.extend(data)
 
         # Send the message
         self._owner.send_data(msg_data, (self._remote_ip, self._remote_port))
 
-        # Update LEDBAT
-        self._ledbat.last_send_time = t_now
+    def _build_and_send_data(self):
+        """Build and send data message"""
 
-        # Append to list of outstanding
-        # RTTs are not calculated from resends
-        if resend and this_seq in self._sent_ts:
-            # Delete stale data if present
-            del self._sent_ts[this_seq]
-        else:
-            self._sent_ts[this_seq] = t_now
-        self._set_outstanding.add(this_seq)
+        # Set useful vars
+        time_now = time.time()
+        seq_num = self._next_seq
+        self._next_seq += 1
 
-        # Update counters
-        if resend:
-            self._chunks_resent += 1
-        else:
-            self._chunks_sent += 1
+        # Build and send message
+        self._send_data(seq_num, time_now, None)
+
+        # Add to in-flight tracker
+        self._inflight.add(seq_num, time_now, None)
+
+        # Update stats
+        self._chunks_sent += 1
 
     def data_received(self, data, receive_time):
         """Handle the DATA message for this test"""
@@ -331,61 +319,65 @@ class LedbatTest(object):
         # Send ACK
         self._owner.send_data(msg_bytes, (self._remote_ip, self._remote_port))
 
+    def _resend_indicated(self, resendable_list):
+        """Resend items with given SEQ numbers"""
+
+        for seq_num in resendable_list:
+            (ts, resent, data) = self._inflight.get_item(seq_num)
+            self._send_data(seq_num, time.time(), data)
+            self._inflight.set_resent(seq_num)
+            self._chunks_resent += 1
+
     def ack_received(self, ack_data, rx_time):
         """Handle the ACK"""
 
+        delays = []
+        rtts = []
+        t_now = time.time()
+
         # Update time of latest datain
-        self._time_last_rx = time.time()
+        self._time_last_rx = t_now
 
         # Extract the data
         (ack_from, ack_to, num_delays) = struct.unpack('>III', ack_data[0:12])
 
-        # Check if this is loss event
-        if any(self._set_outstanding):
+        # Do not process duplicates
+        if ack_to < self._inflight.peek():
+            logging.info('Duplciate ACK packet. ACKed: %s:%s', ack_from, ack_to)
+            return
 
-            # If we ack something higher than min outstanding, it might be a loss
-            min_outstanding = min(self._set_outstanding)
-            if ack_from > min_outstanding:
-                self._cnt_loss += 1
+        # Check for out-of-order and calculate rtts
+        for acked_seq_num in range(ack_from, ack_to + 1):
+            
+            if acked_seq_num == self._inflight.peek():
+                (ts, resent, data) = self._inflight.pop()
+            else:
+                (ts, resent, data) = self._inflight.pop_given(acked_seq_num)
+                self._cnt_ooo += 1
 
-            # Check if this is a loss event
-            if self._cnt_loss == 3:
-                # Declare loss to LEDBAT
-                self._ledbat.data_loss(True, SZ_DATA)
-                
-                # Request resend
-                self._lost_seq = min_outstanding
+            self._chunks_acked += 1
+            last_acked = acked_seq_num
+            
+            if not resent:
+                rtts.append(t_now - ts)
 
-                # Reset the counter
-                self._cnt_loss = 0
-                
+        if self._cnt_ooo > OOO_THRESH:
+            resendable = self._inflight.get_resendable(last_acked)
+            self._resend_indicated(resendable_list)
+            self._ledbat.data_loss()
+            logging.info('Dataloss, num-ooo: %s', self._cnt_ooo)
+
+        self._cnt_ooo = 0
+
         # Extract list of delays
-        delays = []
         for n in range(0, num_delays):
             delays.append(int(struct.unpack('>Q', ack_data[12+n*8:20+n*8])[0]))
 
         # Move to milliseconds from microseconds
         delays = [x / 1000 for x in delays]
 
-        # Extract RT measurements
-        rtts = []
-        for seq in range(ack_from, ack_to+1):
-            # Try getting from sent timestamps 
-            sent_ts = self._sent_ts.get(seq)
-            if sent_ts is not None:
-                rtts.append(rx_time - sent_ts)
-        
-        # Update state
-        for seq in range(ack_from, ack_to+1):
-            self._set_outstanding.discard(seq)
-            if seq in self._sent_ts:
-                del self._sent_ts[seq]
-
         # Feed new data to LEDBAT
-        self._ledbat.ack_received(delays, (ack_to - ack_from + 1) * SZ_DATA, rtts)
-
-        # Update stats
-        self._chunks_acked += ack_to - ack_from + 1
+        self._ledbat.update_measurements((ack_to - ack_from + 1) * SZ_DATA, delays, rtts)
 
     def dispose(self):
         """Cleanup this test"""
