@@ -1,3 +1,7 @@
+"""
+Ledbat testing application.
+"""
+
 import logging
 import asyncio
 import socket
@@ -10,6 +14,10 @@ from testledbat import serverrole
 UDP_PORT = 6888
 
 def test_ledbat(params):
+    """
+    Entry function for LEDBAT testing application.
+    """
+
     # Validate the params
     if params.role == 'client' and params.remote is None:
         logging.error('Address of the remote server must be provided for the client role!')
@@ -27,7 +35,7 @@ def test_ledbat(params):
 
     # Init the events loop and udp transport
     loop = asyncio.get_event_loop()
-    listen = loop.create_datagram_endpoint(udpserver.udpserver, local_addr=('0.0.0.0', UDP_PORT))
+    listen = loop.create_datagram_endpoint(udpserver.UdpServer, local_addr=('0.0.0.0', UDP_PORT))
     transport, protocol = loop.run_until_complete(listen)
 
     # Enable Ctrl-C closing in WinNT

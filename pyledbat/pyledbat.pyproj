@@ -24,6 +24,9 @@
     <EnableUnmanagedDebugging>false</EnableUnmanagedDebugging>
   </PropertyGroup>
   <ItemGroup>
+    <Compile Include="develop_app.py">
+      <SubType>Code</SubType>
+    </Compile>
     <Compile Include="ledbat\simpleledbat.py">
       <SubType>Code</SubType>
     </Compile>

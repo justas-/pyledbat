@@ -245,3 +245,4 @@ ModelManifest.xml
 pyledbat/__pycache__
 pyledbat/ledbat/__pycache__
 pyledbat/testledbat/__pycache__
+/pyledbat/develop_app.py

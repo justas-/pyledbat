@@ -1,11 +1,8 @@
 """
 This is a base implementation of LEDBAT following the [RFC6817] for LEDBAT
-specification and [RFC6298] for round-trip time calculations. This file is
-not enough on its own, and must be extended to gate the sending. An example
-of such extending is provided by swiftledbat implementation.
-
-N.B. Swiftledbat is not specific branch of ledbat, but merely combination
-of libswift and ledbat.
+specification. This file is not enough on its own, and must be extended to
+gate the sending. An example of such extending is provided by simpleledbat
+implementation and in the test application.
 """
 
 import time
@@ -69,7 +66,7 @@ class BaseLedbat(object):
 
         if loss_size is None:
             loss_size = BaseLedbat.MSS
-        
+
         # Prevent calling too often
         if self._last_data_loss != 0:
             if t_now - self._last_data_loss < self._rtt:
@@ -81,7 +78,7 @@ class BaseLedbat(object):
 
         # Reduce the congestion window size
         self._cwnd = min([
-            self._cwnd, 
+            self._cwnd,
             max([self._cwnd / 2, BaseLedbat.MIN_CWND * BaseLedbat.MSS])
         ])
 
@@ -89,13 +86,13 @@ class BaseLedbat(object):
         if not will_retransmit:
             self._flightsize = self._flightsize - loss_size
 
-    def _no_ack_in_cto(self):
+    def no_ack_in_cto(self):
         """Update CWND if no ACK was received in CTO"""
 
         self._cwnd = 1 * BaseLedbat.MSS
-        self._cto = 2 * self._cto 
+        self._cto = 2 * self._cto
 
-    def _update_cto(self, rt_measurements):
+    def _update_cto(self, rtt_values):
         """Calculate congestion timeout (CTO)"""
         pass
 
@@ -104,7 +101,7 @@ class BaseLedbat(object):
 
         # Implemented per [RFC6817] MIN filter over a small window
         # multiplied by -1 to get latest window_size values
-        window_size = -1 * math.ceil(BaseLedbat.BASE_HISTORY/4)
+        window_size = -1 * math.ceil(self.BASE_HISTORY/4)
         return min(filter_data[window_size:])
 
     def _update_base_delay(self, delay):

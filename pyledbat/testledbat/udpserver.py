@@ -1,8 +1,11 @@
+"""
+Asyncio implementation of UDP server.
+"""
 import asyncio
 import logging
 
-class udpserver(asyncio.DatagramProtocol):
-    """description of class"""
+class UdpServer(asyncio.DatagramProtocol):
+    """Extension of asyncio DatagramProtocol"""
 
     def __init__(self, **kwargs):
         self._transport = None
@@ -10,7 +13,7 @@ class udpserver(asyncio.DatagramProtocol):
 
     def send_data(self, data, addr):
         self._transport.sendto(data, addr)
-    
+
     def register_receiver(self, receiver):
         self._receiver = receiver
 
@@ -21,10 +24,10 @@ class udpserver(asyncio.DatagramProtocol):
         self._receiver.datagram_received(data, addr)
 
     def error_received(self, exc):
-        logging.warning('Error received: %s' %exc)
+        logging.warning('Error received: %s', exc)
 
     def connection_lost(self, exc):
-        logging.error('Connection lost: %s' %exc)
+        logging.error('Connection lost: %s', exc)
 
     def pause_writing(self):
         logging.info('Socket is above high-water mark')

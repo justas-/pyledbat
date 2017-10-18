@@ -33,31 +33,31 @@ class ServerRole(baserole.BaseRole):
             return
         else:
             # All other combinations must have remote_channel set
-            lt = self._tests.get(rem_ch)
+            this_test = self._tests.get(rem_ch)
 
-            if lt is None:
-                logging.warning('Could not find ledbat test with our id: %s' %rem_ch)
+            if this_test is None:
+                logging.warning('Could not find ledbat test with our id: %s', rem_ch)
                 return
 
             if msg_type == 1:
                 logging.warning('Server should not receive INIT-ACK')
             elif msg_type == 2:
-                lt.data_received(data[12:], rx_time)
+                this_test.data_received(data[12:], rx_time)
             elif msg_type == 3:
                 logging.warning('Server should not receive ACK message')
             else:
-                logging.warning('Discarded unknown message type (%s) from %s' %(msg_type, addr))
+                logging.warning('Discarded unknown message type (%s) from %s', msg_type, addr)
 
     def _test_init_req(self, their_channel, addr):
         """Initialize new test as requested"""
 
         # This is attempt to start a new test
-        lt = ledbat_test.LedbatTest(False, addr[0], addr[1], self)
-        lt.remote_channel = their_channel
-        lt.local_channel = random.randint(1, 65534)
+        lebat_test = ledbat_test.LedbatTest(False, addr[0], addr[1], self)
+        lebat_test.remote_channel = their_channel
+        lebat_test.local_channel = random.randint(1, 65534)
 
         # Add to a list of tests
-        self._tests[lt.local_channel] = lt
+        self._tests[lebat_test.local_channel] = lebat_test
 
         # Send INIT-ACK
-        lt.send_init_ack()
+        lebat_test.send_init_ack()

@@ -80,28 +80,28 @@ class LedbatTest(object):
         """Periodic check to see if idle test should be removed"""
 
         if self._time_last_rx is None or time.time() - self._time_last_rx > T_IDLE:
-            logging.info('%s Destroying due to being idle' %self)
+            logging.info('%s Destroying due to being idle', self)
             self.dispose()
         else:
             self._hdl_init_ack = self._ev_loop.call_later(T_INIT_ACK, self._check_for_idle)
 
     def _build_and_send_init(self):
         """Build and send the INIT message"""
-        
+
         # Build the message
         msg_bytes = bytearray(12)
-        struct.pack_into('>III', msg_bytes, 0, 
-            1,                     # Type - ACK
-            0,                     # Remote Channel
-            self.local_channel     # Local channel
-        ) 
+        struct.pack_into('>III', msg_bytes, 0,
+                         1,                     # Type - ACK
+                         0,                     # Remote Channel
+                         self.local_channel     # Local channel
+                        )
 
         # Send it to the remote
         self._owner.send_data(msg_bytes, (self._remote_ip, self._remote_port))
         self._num_init_sent += 1
 
         # Print log
-        logging.info('{} Sent INIT message ({})'.format(self, self._num_init_sent))
+        logging.info('%s Sent INIT message (%s)', self, self._num_init_sent)
 
     def _init_ack_missing(self):
         """Called by when init ACK not received within time interval"""
@@ -112,7 +112,7 @@ class LedbatTest(object):
             self._hdl_init_ack = self._ev_loop.call_later(T_INIT_ACK, self._init_ack_missing)
         else:
             # After 3 time, dispose the test
-            logging.info('{} INI-ACK missing!'.format(self))
+            logging.info('%s INI-ACK missing!', self)
             self.dispose()
 
     def send_init_ack(self):
@@ -126,14 +126,14 @@ class LedbatTest(object):
 
     def _init_data_missing(self):
         """Called when DATA is not received after INIT-ACK"""
-        
+
         # Keep resending INIT-ACK up to 3 times
         if self._num_init_ack_sent < 3:
             self._build_and_send_init_ack()
             self._hdl_act_to_data = self._ev_loop.call_later(T_INIT_DATA, self._init_data_missing)
         else:
             # After 3 times dispose
-            logging.info('{} DATA missing after 3 INIT-ACK'.format(self))
+            logging.info('%s DATA missing after 3 INIT-ACK', self)
             self.dispose()
 
     def _build_and_send_init_ack(self):
@@ -145,14 +145,14 @@ class LedbatTest(object):
                          1,                     # Type
                          self.remote_channel,   # Remote channel
                          self.local_channel     # Local channel
-        )
+                        )
 
         # Send it
         self._owner.send_data(msg_bytes, (self._remote_ip, self._remote_port))
         self._num_init_ack_sent += 1
 
         # Print log
-        logging.info('{} Sent INIT-ACK message ({})'.format(self, self._num_init_ack_sent))
+        logging.info('%s Sent INIT-ACK message (%s)', self, self._num_init_ack_sent)
 
     def init_ack_received(self, remote_channel):
         """Handle INIT-ACK message from remote"""
@@ -169,7 +169,7 @@ class LedbatTest(object):
             self.remote_channel = remote_channel
             self.is_init = True
 
-            logging.info('%s Test initialized' %self)
+            logging.info('%s Test initialized', self)
 
             # Cancel timer
             self._hdl_init_ack.cancel()
@@ -177,7 +177,7 @@ class LedbatTest(object):
 
             # Start the TEST
             self._start_test()
-    
+
     def _start_test(self):
         """Start testing"""
 
@@ -185,16 +185,16 @@ class LedbatTest(object):
         self._time_start = time.time()
 
         # Scedule sending event on the loop
-        logging.info('{} Starting test'.format(self))
+        logging.info('%s Starting test', self)
         self._hdl_send_data = self._ev_loop.call_soon(self._try_next_send)
 
     def stop_test(self):
         """Stop the test and print results"""
-        
-        logging.info('%s Request to stop!' %self)
+
+        logging.info('%s Request to stop!', self)
         self._time_stop = time.time()
         self._print_status()
-        
+
     def _try_next_send(self):
         """Try sending next data segment. This implementation sends data
            as fast as possible using polling. A more elegant solution using
@@ -207,7 +207,7 @@ class LedbatTest(object):
             self._build_and_send_data()
             self._ledbat.data_sent(SZ_DATA)
             self._hdl_send_data = self._ev_loop.call_soon(self._try_next_send)
-            
+
             # Print stats
             if self._chunks_sent % PRINT_EVERY == 0:
                 self._print_status()
@@ -216,7 +216,7 @@ class LedbatTest(object):
 
     def _print_status(self):
         """Print status during sending"""
-        
+
         # Calculate values
         test_time = time.time() - self._time_start
 
@@ -233,8 +233,8 @@ class LedbatTest(object):
                      self._chunks_resent, tx_rate)
 
         # Print debug data if enabled
-        logging.debug('cwnd: %d; flsz: %d; qd: %.2f; rtt: %.6f;', 
-                      self._ledbat.cwnd, self._ledbat.flightsize, 
+        logging.debug('cwnd: %d; flsz: %d; qd: %.2f; rtt: %.6f;',
+                      self._ledbat.cwnd, self._ledbat.flightsize,
                       self._ledbat.queuing_delay, self._ledbat.rtt)
 
     def _send_data(self, seq_num, time_sent, data):
@@ -245,7 +245,7 @@ class LedbatTest(object):
         msg_data.extend(struct.pack(
             '>IIIIQ', # Type, Rem_ch, Loc_ch, Seq, Timestamp
             2,
-            self.remote_channel, 
+            self.remote_channel,
             self.local_channel,
             seq_num,
             int(time_sent * 1000000)))
@@ -286,15 +286,15 @@ class LedbatTest(object):
             if self._hdl_act_to_data is not None:
                 self._hdl_act_to_data.cancel()
                 self._hdl_act_to_data = None
-            
+
             self.is_init = True
-            logging.info('%s Got first data. Test is init' %self)
+            logging.info('%s Got first data. Test is init', self)
 
         # data is binary data _without_ the header
-        (seq, ts) = struct.unpack('>IQ', data[0:12])
+        (seq, time_stamp) = struct.unpack('>IQ', data[0:12])
 
         # Get the delay
-        one_way_delay = (receive_time * 1000000) - ts 
+        one_way_delay = (receive_time * 1000000) - time_stamp
 
         # Send ACK, no delays/grouping
         self._send_ack(seq, seq, [one_way_delay])
@@ -303,7 +303,7 @@ class LedbatTest(object):
         """Build and send ACK message"""
 
         msg_bytes = bytearray()
-        
+
         # Header
         msg_bytes.extend(struct.pack('>III', 3, self.remote_channel, self.local_channel))
 
@@ -323,7 +323,7 @@ class LedbatTest(object):
         """Resend items with given SEQ numbers"""
 
         for seq_num in resendable_list:
-            (ts, resent, data) = self._inflight.get_item(seq_num)
+            (_, _, data) = self._inflight.get_item(seq_num)
             self._send_data(seq_num, time.time(), data)
             self._inflight.set_resent(seq_num)
             self._chunks_resent += 1
@@ -333,10 +333,9 @@ class LedbatTest(object):
 
         delays = []
         rtts = []
-        t_now = time.time()
 
         # Update time of latest datain
-        self._time_last_rx = t_now
+        self._time_last_rx = rx_time
 
         # Extract the data
         (ack_from, ack_to, num_delays) = struct.unpack('>III', ack_data[0:12])
@@ -348,30 +347,30 @@ class LedbatTest(object):
 
         # Check for out-of-order and calculate rtts
         for acked_seq_num in range(ack_from, ack_to + 1):
-            
+
             if acked_seq_num == self._inflight.peek():
-                (ts, resent, data) = self._inflight.pop()
+                (time_stamp, resent, _) = self._inflight.pop()
             else:
-                (ts, resent, data) = self._inflight.pop_given(acked_seq_num)
+                (time_stamp, resent, _) = self._inflight.pop_given(acked_seq_num)
                 self._cnt_ooo += 1
 
             self._chunks_acked += 1
             last_acked = acked_seq_num
-            
+
             if not resent:
-                rtts.append(t_now - ts)
+                rtts.append(rx_time - time_stamp)
 
         if self._cnt_ooo > OOO_THRESH:
             resendable = self._inflight.get_resendable(last_acked)
-            self._resend_indicated(resendable_list)
+            self._resend_indicated(resendable)
             self._ledbat.data_loss()
             logging.info('Dataloss, num-ooo: %s', self._cnt_ooo)
 
         self._cnt_ooo = 0
 
         # Extract list of delays
-        for n in range(0, num_delays):
-            delays.append(int(struct.unpack('>Q', ack_data[12+n*8:20+n*8])[0]))
+        for dalay in range(0, num_delays):
+            delays.append(int(struct.unpack('>Q', ack_data[12+dalay*8:20+dalay*8])[0]))
 
         # Move to milliseconds from microseconds
         delays = [x / 1000 for x in delays]
@@ -383,7 +382,7 @@ class LedbatTest(object):
         """Cleanup this test"""
 
         # Log information
-        logging.info('{} Disposing'.format(self))
+        logging.info('%s Disposing', self)
 
         # Cancel all event handles
         if self._hdl_init_ack is not None:
@@ -406,5 +405,6 @@ class LedbatTest(object):
         self._owner.remove_test(self)
 
     def __str__(self, **kwargs):
-        return 'TEST: LC:{} RC: {} ({}:{}):'.format(self.local_channel, self.remote_channel,
+        return 'TEST: LC:{} RC: {} ({}:{}):'.format(
+            self.local_channel, self.remote_channel,
             self._remote_ip, self._remote_port)

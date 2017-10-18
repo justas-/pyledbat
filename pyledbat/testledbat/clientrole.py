@@ -1,3 +1,7 @@
+"""
+Implementation of the client role in the test application.
+"""
+
 import asyncio
 import random
 import struct
@@ -36,7 +40,7 @@ class ClientRole(baserole.BaseRole):
         elif msg_type == 3:     # ACK
             ledbattest.ack_received(data[12:], rx_time)
         else:
-            logging.warning('Discarded unknown message type (%s) from %s' % (msg_type, addr))
+            logging.warning('Discarded unknown message type (%s) from %s', msg_type, addr)
 
     def start_client(self, remote_ip, remote_port):
         """Start the functioning of the client by starting a new test"""
@@ -55,7 +59,7 @@ class ClientRole(baserole.BaseRole):
         """Extend remove_test to close client when the last test is removed"""
         super().remove_test(test)
 
-        if len(self._tests) == 0:
+        if not self._tests:
             logging.info('Last test removed. Closing client')
             asyncio.get_event_loop().stop()
 

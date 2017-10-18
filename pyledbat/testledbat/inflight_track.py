@@ -11,20 +11,20 @@ class InflightTrack(object):
         self._deq = collections.deque() # Contains only seq numbers
         self._store = {}                # Contains [timestamp_sent, resent, data]
 
-    def add(self, seq, ts, data):
+    def add(self, seq, time_stamp, data):
         """Add item to the list of data in-flight"""
 
         self._deq.appendleft(seq)
-        self._store[seq] = [ts, False, data]
+        self._store[seq] = [time_stamp, False, data]
 
     def peek(self):
         """Get the seq number of the right-most item"""
         return self._deq[-1]
 
-    def pop(self, get_item = True):
+    def pop(self, get_item=True):
         """Remove the rightmost item"""
         seq_num = self._deq.pop()
-        
+
         if get_item:
             item = self._store[seq_num]
             del self._store[seq_num]

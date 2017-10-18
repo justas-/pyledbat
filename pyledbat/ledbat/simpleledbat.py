@@ -12,7 +12,10 @@ class SimpleLedbat(baseledbat.BaseLedbat):
     # [RFC6298] values
     COEF_G = 0.1
     COEF_K = 4
-    COEF_ALPHA = 0.125               # alpha, beta per Jacobson, V. and M. Karels, "Congestion Avoidance and Control
+
+    # alpha, beta per Jacobson, V. "Congestion Avoidance and Control"
+    # doi: 10.1145/52325.52356
+    COEF_ALPHA = 0.125
     COEF_BETA = 0.25
 
     @property
@@ -40,7 +43,7 @@ class SimpleLedbat(baseledbat.BaseLedbat):
 
         self.last_send_time = None
 
-        # RFC6298
+        # [RFC6298]
         self._rt_measured = False  # Flag to check if the first measurement was done
         self._srtt = None
         self._rttvar = None
@@ -95,5 +98,5 @@ class SimpleLedbat(baseledbat.BaseLedbat):
         # Per [RFC6298] p2.4
         if self._cto < 1.0:
             self._cto = 1.0
-        
+
         self._rtt = rtt
