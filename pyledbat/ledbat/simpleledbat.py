@@ -13,7 +13,7 @@ class SimpleLedbat(baseledbat.BaseLedbat):
     COEF_G = 0.1
     COEF_K = 4
 
-    # alpha, beta per Jacobson, V. "Congestion Avoidance and Control"
+    # alpha, beta per Jacobson, V. "Congestion avoidance and control"
     # doi: 10.1145/52325.52356
     COEF_ALPHA = 0.125
     COEF_BETA = 0.25
@@ -37,6 +37,16 @@ class SimpleLedbat(baseledbat.BaseLedbat):
     def queuing_delay(self):
         """Get queuing delay estimate"""
         return self._queuing_delay
+
+    @property
+    def srtt(self):
+        """Get smoothed-rtt value"""
+        return self._srtt
+
+    @property
+    def rttvar(self):
+        """Get rtt variance value"""
+        return self._rttvar
 
     def __init__(self):
         """Init the required variables"""

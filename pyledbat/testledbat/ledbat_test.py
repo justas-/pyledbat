@@ -6,6 +6,7 @@ import logging
 import asyncio
 import struct
 import time
+import csv
 
 from ledbat import simpleledbat
 from .inflight_track import InflightTrack
@@ -16,16 +17,20 @@ T_IDLE = 10.0       # Time to wait when idle before destroying
 
 SZ_DATA = 1024      # Data size in each message
 OOO_THRESH = 3      # When to declare dataloss
-PRINT_EVERY = 5000   # Print debug every this many packets sent
+PRINT_EVERY = 5000  # Print debug every this many packets sent
+LOG_INTERVAL = 0.1  # Log every 0.1 sec
 
 class LedbatTest(object):
     """An instance representing a single LEDBAT test"""
 
-    def __init__(self, is_client, remote_ip, remote_port, owner):
-        self._is_client = is_client
-        self._remote_ip = remote_ip
-        self._remote_port = remote_port
-        self._owner = owner
+    def __init__(self, **kwargs):
+
+        self._is_client = kwargs.get('is_client')
+        self._remote_ip = kwargs.get('remote_ip')
+        self._remote_port = kwargs.get('remote_port')
+        self._owner = kwargs.get('owner')
+        self._make_log = kwargs.get('make_log')
+
         self._ev_loop = asyncio.get_event_loop()
 
         self._num_init_sent = 0
@@ -60,6 +65,9 @@ class LedbatTest(object):
 
         # Run periodic checks if object should be removed due to being idle
         self._hdl_idle = self._ev_loop.call_later(T_IDLE, self._check_for_idle)
+
+        self._hdl_log = None
+        self._log_data_list = []
 
     def start_init(self):
         """Start the test initialization procedure"""
@@ -188,12 +196,66 @@ class LedbatTest(object):
         logging.info('%s Starting test', self)
         self._hdl_send_data = self._ev_loop.call_soon(self._try_next_send)
 
+        self._log_data()
+
+    def _log_data(self):
+        """Make LOG entry"""
+
+        # Cancel pending if any
+        if self._hdl_log is not None:
+            self._hdl_log.cancel()
+
+        self._log_data_list.append([
+            time.time(),
+            self._chunks_sent,
+            self._chunks_resent,
+            self._chunks_acked,
+            self._ledbat.cwnd,
+            self._ledbat.flightsize,
+            self._ledbat.queuing_delay,
+            self._ledbat.rtt,
+            self._ledbat.srtt,
+            self._ledbat.rttvar,
+        ])
+
+        # Schedule next call
+        self._hdl_log = self._ev_loop.call_later(LOG_INTERVAL, self._log_data)
+
+    def _save_log(self):
+        """Save log to the file"""
+
+        filename = '{}-{}-{}.csv'.format(
+            int(self._time_start),
+            self._remote_ip,
+            self._remote_port)
+
+        with open(filename, 'w', newline='') as fp_csv:
+            csvwriter = csv.writer(fp_csv)
+
+            # Make header
+            csvwriter.writerow(
+                [
+                    'Time', 'Sent', 'Resent', 'Acked', 'Cwnd', 'Flightsz',
+                    'Queuind_delay', 'Rtt', 'Srtt', 'Rttvar'
+                ])
+
+            # Write all rows
+            for row in self._log_data_list:
+                csvwriter.writerow(row)
+
     def stop_test(self):
         """Stop the test and print results"""
 
         logging.info('%s Request to stop!', self)
         self._time_stop = time.time()
         self._print_status()
+
+        # Make the last log entry
+        if self._log_data:
+            self._log_data()
+            if self._hdl_log is not None:
+                self._hdl_log.cancel()
+            self._save_log()
 
     def _try_next_send(self):
         """Try sending next data segment. This implementation sends data

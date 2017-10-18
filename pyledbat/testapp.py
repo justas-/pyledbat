@@ -15,6 +15,7 @@ def main():
     parser.add_argument('--role', help='Role of the instance {client|server}', default='server')
     parser.add_argument('--remote', help='IP Address of the test server')
     parser.add_argument('--debug', help='Enable verbose output', action='store_true')
+    parser.add_argument('--makelog', help='Save runtime values into CSV file', action='store_true')
 
     # Parse the command line params
     args = parser.parse_args()

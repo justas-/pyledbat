@@ -33,6 +33,9 @@ def test_ledbat(params):
         logging.getLogger().setLevel(logging.DEBUG)
         logging.debug('Debug output enabled!')
 
+    if params.makelog:
+        logging.info('Run-time values will be saved to the log file')
+
     # Init the events loop and udp transport
     loop = asyncio.get_event_loop()
     listen = loop.create_datagram_endpoint(udpserver.UdpServer, local_addr=('0.0.0.0', UDP_PORT))
@@ -49,7 +52,9 @@ def test_ledbat(params):
     if params.role == 'client':
         # Run the client
         client = clientrole.ClientRole(protocol)
-        client.start_client(params.remote, UDP_PORT)
+        client.start_client(remote_ip=params.remote,
+                            remote_port=UDP_PORT,
+                            make_log=params.makelog)
     else:
         # Do the Server thing
         server = serverrole.ServerRole(protocol)

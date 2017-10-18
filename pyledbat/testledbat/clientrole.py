@@ -42,11 +42,15 @@ class ClientRole(baserole.BaseRole):
         else:
             logging.warning('Discarded unknown message type (%s) from %s', msg_type, addr)
 
-    def start_client(self, remote_ip, remote_port):
+    def start_client(self, **kwargs):
         """Start the functioning of the client by starting a new test"""
 
         # Create instance of this test
-        ledbattest = ledbat_test.LedbatTest(True, remote_ip, remote_port, self)
+        ledbattest = ledbat_test.LedbatTest(is_client=True,
+                                            remote_ip=kwargs.get('remote_ip'),
+                                            remote_port=kwargs.get('remote_port'),
+                                            owner=self,
+                                            make_log=kwargs.get('make_log'))
         ledbattest.local_channel = random.randint(1, 65534)
 
         # Save in the list of tests
