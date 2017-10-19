@@ -52,6 +52,7 @@ class ClientRole(baserole.BaseRole):
             'remote_port':kwargs.get('remote_port'),
             'owner':self,
             'make_log':kwargs.get('make_log'),
+            'log_name':kwargs.get('log_name'),
             'ledbat_params':kwargs.get('ledbat_params'),
             'log_dir':kwargs.get('log_dir'),
         }

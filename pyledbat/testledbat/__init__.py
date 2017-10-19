@@ -27,9 +27,6 @@ def test_ledbat(params):
     if not params.time or params.time < 0:
         params.time = None
 
-    if not params.log_dir:
-        params.log_dir = None
-
     ledbat_params = None
 
     # Print debug information
@@ -52,11 +49,17 @@ def test_ledbat(params):
         logging.debug('Debug output enabled!')
 
     if params.makelog:
-        log_dir = ''
+        log_info = ''
         if params.log_dir:
-            log_dir = ' ({})'.format(params.log_dir)
+            if params.log_name:
+                log_info = ' ({})'.format(os.path.join(params.log_dir, params.log_name+'.csv'))
+            else:
+                log_info = ' ({})'.format(params.log_dir)
+        else:
+            if params.log_name:
+                log_info = ' ({})'.format(params.log_name+'.csv')
 
-        logging.info('Run-time values will be saved to the log file%s', log_dir)
+        logging.info('Run-time values will be saved to the log file%s', log_info)
 
     # Init the events loop and udp transport
     loop = asyncio.get_event_loop()
@@ -77,6 +80,7 @@ def test_ledbat(params):
         client.start_client(remote_ip=params.remote,
                             remote_port=UDP_PORT,
                             make_log=params.makelog,
+                            log_name=params.log_name,
                             log_dir=params.log_dir,
                             test_len=params.time,
                             ledbat_params=ledbat_params)
