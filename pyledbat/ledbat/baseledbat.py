@@ -8,6 +8,7 @@ implementation and in the test application.
 import time
 import datetime
 import math
+import logging
 
 class BaseLedbat(object):
     """Base class with constante defined"""
@@ -21,7 +22,7 @@ class BaseLedbat(object):
     ALLOWED_INCREASE = 1
     MIN_CWND = 2
 
-    def __init__(self):
+    def __init__(self, **kwargs):
         """Initialize the instance"""
         self._current_delays = BaseLedbat.CURRENT_FILTER * [1000000]
         self._base_delays = BaseLedbat.BASE_HISTORY * [float('inf')]
@@ -33,6 +34,33 @@ class BaseLedbat(object):
         self._rtt = None                                # Round Trip Time
         self._last_data_loss = 0                        # When was latest dataloss event observed
         self._last_ack_received = None                  # When was the last ACK received
+
+        # Change defaults if given:
+        for key, value in kwargs.items():
+            if key == 'set_current_filter':
+                BaseLedbat.CURRENT_FILTER = value
+                logging.info('LEDBAT parameter changed: %s => %s', key, value)
+            if key == 'set_base_history':
+                BaseLedbat.BASE_HISTORY = value
+                logging.info('LEDBAT parameter changed: %s => %s', key, value)
+            if key == 'set_init_cwnd':
+                BaseLedbat.INIT_CWND = value
+                logging.info('LEDBAT parameter changed: %s => %s', key, value)
+            if key == 'set_mss':
+                BaseLedbat.MSS = value
+                logging.info('LEDBAT parameter changed: %s => %s', key, value)
+            if key == 'set_target':
+                BaseLedbat.TARGET = value
+                logging.info('LEDBAT parameter changed: %s => %s', key, value)
+            if key == 'set_gain':
+                BaseLedbat.GAIN = value
+                logging.info('LEDBAT parameter changed: %s => %s', key, value)
+            if key == 'set_allowed_increase':
+                BaseLedbat.ALLOWED_INCREASE = value
+                logging.info('LEDBAT parameter changed: %s => %s', key, value)
+            if key == 'set_min_cwnd':
+                BaseLedbat.MIN_CWND = value
+                logging.info('LEDBAT parameter changed: %s => %s', key, value)
 
     def _ack_received(self, bytes_acked, ow_delays, rtt_delays):
         """Parse the received delay sample(s)

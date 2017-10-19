@@ -48,7 +48,7 @@ class SimpleLedbat(baseledbat.BaseLedbat):
         """Get rtt variance value"""
         return self._rttvar
 
-    def __init__(self):
+    def __init__(self, **kwargs):
         """Init the required variables"""
 
         self.last_send_time = None
@@ -58,7 +58,7 @@ class SimpleLedbat(baseledbat.BaseLedbat):
         self._srtt = None
         self._rttvar = None
 
-        super().__init__()
+        super().__init__(**kwargs)
 
     def data_sent(self, data_len):
         """Increase amount of data in flight"""

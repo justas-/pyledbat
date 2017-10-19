@@ -27,8 +27,13 @@ def test_ledbat(params):
     if not params.time or params.time < 0:
         params.time = None
 
+    ledbat_params = None
+
     # Print debug information
     if params.role == 'client':
+        # Extract any ledbat overwrites
+        ledbat_params = extract_ledbat_params(params)
+
         if params.time:
             str_test_len = '{} s.'.format(params.time)
         else:
@@ -65,7 +70,8 @@ def test_ledbat(params):
         client.start_client(remote_ip=params.remote,
                             remote_port=UDP_PORT,
                             make_log=params.makelog,
-                            test_len=params.time)
+                            test_len=params.time,
+                            ledbat_params=ledbat_params)
     else:
         # Do the Server thing
         server = serverrole.ServerRole(protocol)
@@ -83,3 +89,18 @@ def test_ledbat(params):
     # Cleanup
     transport.close()
     loop.close()
+
+def extract_ledbat_params(parameters):
+    """Extract LEDBAT settings"""
+
+    ledbat_params = {}
+
+    for attr, value in vars(parameters).items():
+        try:
+            if attr.startswith('ledbat'):
+                ledbat_params[attr[attr.index('_')+1:]] = value
+        except IndexError:
+            # Better check your typos next time...
+            logging.info('Failed to parse LEDBAT param: %s', attr)
+
+    return ledbat_params

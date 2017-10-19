@@ -46,11 +46,15 @@ class ClientRole(baserole.BaseRole):
         """Start the functioning of the client by starting a new test"""
 
         # Create instance of this test
-        ledbattest = ledbat_test.LedbatTest(is_client=True,
-                                            remote_ip=kwargs.get('remote_ip'),
-                                            remote_port=kwargs.get('remote_port'),
-                                            owner=self,
-                                            make_log=kwargs.get('make_log'))
+        test_args = {
+            'is_client':True,
+            'remote_ip':kwargs.get('remote_ip'),
+            'remote_port':kwargs.get('remote_port'),
+            'owner':self,
+            'make_log':kwargs.get('make_log'),
+            'ledbat_params':kwargs.get('ledbat_params'),
+        }
+        ledbattest = ledbat_test.LedbatTest(**test_args)
         ledbattest.local_channel = random.randint(1, 65534)
 
         # Save in the list of tests

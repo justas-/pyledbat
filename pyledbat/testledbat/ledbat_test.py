@@ -30,6 +30,7 @@ class LedbatTest(object):
         self._remote_port = kwargs.get('remote_port')
         self._owner = kwargs.get('owner')
         self._make_log = kwargs.get('make_log')
+        self._ledbat_params = kwargs.get('ledbat_params')
 
         self._ev_loop = asyncio.get_event_loop()
 
@@ -42,7 +43,7 @@ class LedbatTest(object):
         self._hdl_send_data = None      # Used to schedule data sending
         self._hdl_idle = None           # Idle check handle
 
-        self._ledbat = simpleledbat.SimpleLedbat()
+        self._ledbat = simpleledbat.SimpleLedbat(**self._ledbat_params)
         self._direct_send = False       # Send immediately before checking next
         self._next_seq = 1
         self._set_outstanding = set()
