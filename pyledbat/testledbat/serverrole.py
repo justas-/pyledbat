@@ -62,7 +62,7 @@ class ServerRole(baserole.BaseRole):
             'ledbat_params':{},
             'log_dir':None,
         }
-        lebat_test = ledbat_test.LedbatTest(test_args)
+        lebat_test = ledbat_test.LedbatTest(**test_args)
         lebat_test.remote_channel = their_channel
         lebat_test.local_channel = random.randint(1, 65534)
 
