@@ -23,9 +23,19 @@ def test_ledbat(params):
         logging.error('Address of the remote server must be provided for the client role!')
         return
 
+    # Prevent negative test times
+    if not params.time or params.time < 0:
+        params.time = None
+
     # Print debug information
     if params.role == 'client':
-        logging.info('Starting LEDBAT test client. Remote: %s', params.remote)
+        if params.time:
+            str_test_len = '{} s.'.format(params.time)
+        else:
+            str_test_len = 'Unlimited'
+
+        logging.info('Starting LEDBAT test client. Remote: %s; Length: %s;',
+                     params.remote, str_test_len)
     else:
         logging.info('Starting LEDBAT test server.')
 
@@ -54,7 +64,8 @@ def test_ledbat(params):
         client = clientrole.ClientRole(protocol)
         client.start_client(remote_ip=params.remote,
                             remote_port=UDP_PORT,
-                            make_log=params.makelog)
+                            make_log=params.makelog,
+                            test_len=params.time)
     else:
         # Do the Server thing
         server = serverrole.ServerRole(protocol)

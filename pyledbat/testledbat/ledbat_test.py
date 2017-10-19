@@ -69,6 +69,8 @@ class LedbatTest(object):
         self._hdl_log = None
         self._log_data_list = []
 
+        self.stop_hdl = None    # Stop event handle (if any)
+
     def start_init(self):
         """Start the test initialization procedure"""
 
@@ -466,6 +468,10 @@ class LedbatTest(object):
         if self._hdl_log is not None:
             self._hdl_log.cancel()
             self._hdl_log = None
+
+        if self.stop_hdl is not None:
+            self.stop_hdl.cancel()
+            self.stop_hdl = None
 
         # Remove from the owner
         self._owner.remove_test(self)

@@ -56,8 +56,20 @@ class ClientRole(baserole.BaseRole):
         # Save in the list of tests
         self._tests[ledbattest.local_channel] = ledbattest
 
+        # Schedule test stop if required
+        test_len = kwargs.get('test_len')
+        if test_len:
+            ledbattest.stop_hdl = asyncio.get_event_loop().call_later(
+                test_len, self._stop_test, ledbattest)
+
         # Send the init message to the server
         ledbattest.start_init()
+
+    def _stop_test(self, test):
+        """Stop the given test"""
+        logging.info('Time to stop test: %s', test)
+        test.stop_test()
+        test.dispose()
 
     def remove_test(self, test):
         """Extend remove_test to close client when the last test is removed"""
