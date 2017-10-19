@@ -52,11 +52,17 @@ class ServerRole(baserole.BaseRole):
         """Initialize new test as requested"""
 
         # This is attempt to start a new test
-        lebat_test = ledbat_test.LedbatTest(is_client=False,
-                                            remote_ip=addr[0],
-                                            remote_port=addr[1],
-                                            owner=self,
-                                            make_log=False)
+        test_args = {
+            'is_client':False,
+            'remote_ip':addr[0],
+            'remote_port':addr[1],
+            'owner':self,
+            'make_log':None,
+            'log_name':None,
+            'ledbat_params':{},
+            'log_dir':None,
+        }
+        lebat_test = ledbat_test.LedbatTest(test_args)
         lebat_test.remote_channel = their_channel
         lebat_test.local_channel = random.randint(1, 65534)
 
