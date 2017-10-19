@@ -12,11 +12,12 @@ def main():
     # Setup the command line parser
     parser = argparse.ArgumentParser(description='LEDBAT Test program')
 
-    parser.add_argument('--role', help='Role of the instance {client|server}', default='server')
+    parser.add_argument('--role', help='Role of the instance {client|server}. Server ignores all other arguments!', default='server')
     parser.add_argument('--remote', help='IP Address of the test server')
     parser.add_argument('--debug', help='Enable verbose output', action='store_true')
     parser.add_argument('--makelog', help='Save runtime values into CSV file', action='store_true')
-    parser.add_argument('--time', help='Time to run the test (Client only)', type=int)
+    parser.add_argument('--log-dir', help='Directory to place results file')
+    parser.add_argument('--time', help='Time to run the test', type=int)
     parser.add_argument('--ledbat-set-target', help='Set LEDBAT target queuing delay', type=int)
 
     # Parse the command line params

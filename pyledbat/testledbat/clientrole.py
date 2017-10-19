@@ -53,6 +53,7 @@ class ClientRole(baserole.BaseRole):
             'owner':self,
             'make_log':kwargs.get('make_log'),
             'ledbat_params':kwargs.get('ledbat_params'),
+            'log_dir':kwargs.get('log_dir'),
         }
         ledbattest = ledbat_test.LedbatTest(**test_args)
         ledbattest.local_channel = random.randint(1, 65534)

@@ -7,6 +7,7 @@ import asyncio
 import struct
 import time
 import csv
+import os
 
 from ledbat import simpleledbat
 from .inflight_track import InflightTrack
@@ -31,6 +32,7 @@ class LedbatTest(object):
         self._owner = kwargs.get('owner')
         self._make_log = kwargs.get('make_log')
         self._ledbat_params = kwargs.get('ledbat_params')
+        self._log_dir = kwargs.get('log_dir')
 
         self._ev_loop = asyncio.get_event_loop()
 
@@ -232,7 +234,12 @@ class LedbatTest(object):
             self._remote_ip,
             self._remote_port)
 
-        with open(filename, 'w', newline='') as fp_csv:
+        if self._log_dir:
+            filepath = os.path.join(self._log_dir, filename)
+        else:
+            filepath = filename
+
+        with open(filepath, 'w', newline='') as fp_csv:
             csvwriter = csv.writer(fp_csv)
 
             # Make header
