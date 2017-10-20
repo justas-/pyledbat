@@ -56,7 +56,8 @@ class SimpleLedbat(baseledbat.BaseLedbat):
     def __init__(self, **kwargs):
         """Init the required variables"""
 
-        self._last_send_time = None
+        self._last_send_time = None     # When data was actually sent last time
+        self._last_cto_fail_time = None # When last CTO fail happened
 
         # [RFC6298]
         self._rt_measured = False  # Flag to check if the first measurement was done
@@ -76,11 +77,25 @@ class SimpleLedbat(baseledbat.BaseLedbat):
             self._last_send_time = time_now
             return True
 
-        # Check if we are experiencing congestion?
+        # CTO check
         if self._last_ack_received is not None:
-            if self._last_ack_received < time_now - self._cto:
-                # We are in congestion! No sending
-                self._no_ack_in_cto()
+            # At least one ACK was received
+            
+            if self._last_ack_received + self._cto < time_now:
+                # Last ACK received longet than CTO ago -> Congestion
+                # NB: This conditions should be cleared on idle connections
+
+                if self._last_cto_fail_time is None:
+                    # We never failed CTO check before
+                    self._last_cto_fail_time = time_now
+                    self._no_ack_in_cto()
+                else:
+                    # Call CTO failure at most once per CTO
+                    if self._last_cto_fail_time + self._cto < time_now:
+                        self._last_cto_fail_time = time_now
+                        self._no_ack_in_cto()
+
+                # Congested -> No sending
                 return False
 
         # Check congestion window check
