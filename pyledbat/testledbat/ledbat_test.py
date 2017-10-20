@@ -68,7 +68,8 @@ class LedbatTest(object):
         self._chunks_acked = 0
 
         # Run periodic checks if object should be removed due to being idle
-        self._hdl_idle = self._ev_loop.call_later(T_IDLE, self._check_for_idle)
+        # JP: Disable as test timeout in severe congestionconditions
+        self._hdl_idle = None # self._ev_loop.call_later(T_IDLE, self._check_for_idle)
 
         self._hdl_log = None
         self._log_data_list = []
