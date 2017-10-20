@@ -44,10 +44,6 @@ def test_ledbat(params):
     else:
         logging.info('Starting LEDBAT test server.')
 
-    if params.debug:
-        logging.getLogger().setLevel(logging.DEBUG)
-        logging.debug('Debug output enabled!')
-
     if params.makelog:
         log_info = ''
         if params.log_dir:

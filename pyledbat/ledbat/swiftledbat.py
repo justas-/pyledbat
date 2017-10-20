@@ -55,7 +55,7 @@ class SwiftLedbat(baseledbat.BaseLedbat):
                 t_now - self._last_ack_received > self._cto):
 
             # Ack wasn't there...
-            self.no_ack_in_cto()
+            self._no_ack_in_cto()
 
         # Check if we have any RT measurements? (Slow start some-day)
         if self._rtt is None:

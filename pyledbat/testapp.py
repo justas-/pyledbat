@@ -14,7 +14,6 @@ def main():
 
     parser.add_argument('--role', help='Role of the instance {client|server}. Server ignores all other arguments!', default='server')
     parser.add_argument('--remote', help='IP Address of the test server')
-    parser.add_argument('--debug', help='Enable verbose output', action='store_true')
     parser.add_argument('--makelog', help='Save runtime values into CSV file', action='store_true')
     parser.add_argument('--log-name', help='Name of the log file (replace default UnixTime-IP-Port)')
     parser.add_argument('--log-dir', help='Directory to place results file')

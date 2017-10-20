@@ -223,6 +223,7 @@ class LedbatTest(object):
             self._ledbat.rtt,
             self._ledbat.srtt,
             self._ledbat.rttvar,
+            self._ledbat.cto,
         ])
 
         # Schedule next call
@@ -251,7 +252,7 @@ class LedbatTest(object):
             csvwriter.writerow(
                 [
                     'Time', 'Sent', 'Resent', 'Acked', 'Cwnd', 'Flightsz',
-                    'Queuind_delay', 'Rtt', 'Srtt', 'Rttvar'
+                    'Queuind_delay', 'Rtt', 'Srtt', 'Rttvar', 'Cto'
                 ])
 
             # Write all rows
@@ -279,10 +280,8 @@ class LedbatTest(object):
         """
 
         # TODO: Use semaphore(?) to release sending instead of polling.
-
-        if self._ledbat.cwnd - self._ledbat.flightsize >= SZ_DATA:
+        if self._ledbat.try_sending(SZ_DATA):
             self._build_and_send_data()
-            self._ledbat.data_sent(SZ_DATA)
             self._hdl_send_data = self._ev_loop.call_soon(self._try_next_send)
 
             # Print stats
@@ -308,11 +307,6 @@ class LedbatTest(object):
         logging.info('Time: %.2f TX/ACK/RES: %s/%s/%s TxR: %.2f',
                      test_time, self._chunks_sent, self._chunks_acked,
                      self._chunks_resent, tx_rate)
-
-        # Print debug data if enabled
-        logging.debug('cwnd: %d; flsz: %d; qd: %.2f; rtt: %.6f;',
-                      self._ledbat.cwnd, self._ledbat.flightsize,
-                      self._ledbat.queuing_delay, self._ledbat.rtt)
 
     def _send_data(self, seq_num, time_sent, data):
         """Frame given data and send it"""

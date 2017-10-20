@@ -48,10 +48,15 @@ class SimpleLedbat(baseledbat.BaseLedbat):
         """Get rtt variance value"""
         return self._rttvar
 
+    @property
+    def cto(self):
+        """Get Congestion timeout value"""
+        return self._cto
+
     def __init__(self, **kwargs):
         """Init the required variables"""
 
-        self.last_send_time = None
+        self._last_send_time = None
 
         # [RFC6298]
         self._rt_measured = False  # Flag to check if the first measurement was done
@@ -60,11 +65,33 @@ class SimpleLedbat(baseledbat.BaseLedbat):
 
         super().__init__(**kwargs)
 
-    def data_sent(self, data_len):
-        """Increase amount of data in flight"""
+    def try_sending(self, data_len):
+        """Implement data sending gating and congestion check"""
 
-        self._flightsize += data_len
-        self.last_send_time = time.time()
+        time_now = time.time()
+
+        if self._last_send_time is None:
+            # By definition we can *always* send first segment
+            self._flightsize += data_len
+            self._last_send_time = time_now
+            return True
+
+        # Check if we are experiencing congestion?
+        if self._last_ack_received is not None:
+            if self._last_ack_received < time_now - self._cto:
+                # We are in congestion! No sending
+                self._no_ack_in_cto()
+                return False
+
+        # Check congestion window check
+        if self._flightsize + data_len <= self.cwnd:
+            # We can send data
+            self._flightsize += data_len
+            self._last_send_time = time_now
+            return True
+        else:
+            # Will have to wait
+            return False
 
     def update_measurements(self, data_acked, ow_times, rt_times):
         """Update LEDBAT calculations. data_acked - number of bytes acked,

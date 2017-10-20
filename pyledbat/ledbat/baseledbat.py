@@ -114,7 +114,7 @@ class BaseLedbat(object):
         if not will_retransmit:
             self._flightsize = self._flightsize - loss_size
 
-    def no_ack_in_cto(self):
+    def _no_ack_in_cto(self):
         """Update CWND if no ACK was received in CTO"""
 
         self._cwnd = 1 * BaseLedbat.MSS
