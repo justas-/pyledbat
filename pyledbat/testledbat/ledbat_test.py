@@ -47,10 +47,7 @@ class LedbatTest(object):
         self._hdl_idle = None           # Idle check handle
 
         self._ledbat = simpleledbat.SimpleLedbat(**self._ledbat_params)
-        self._direct_send = False       # Send immediately before checking next
         self._next_seq = 1
-        self._set_outstanding = set()
-        self._sent_ts = {}
 
         self._inflight = InflightTrack()
         self._cnt_ooo = 0               # Count of Out-of-Order packets
@@ -63,9 +60,19 @@ class LedbatTest(object):
         self._time_stop = None
         self._time_last_rx = None
 
-        self._chunks_sent = 0
-        self._chunks_resent = 0
-        self._chunks_acked = 0
+        self.stats = {}
+        self.stats['Init'] = False
+        self.stats['Sent'] = 0
+        self.stats['Ack'] = 0
+        self.stats['Resent'] = 0
+        self.stats['SentPrev'] = 0
+        self.stats['AckPrev'] = 0
+        self.stats['ResentPrev'] = 0
+        self.stats['TPrev'] = 0
+        self.stats['GateSent'] = 0
+        self.stats['GateWait'] = 0
+        self.stats['GateSentPrev'] = 0
+        self.stats['GateWaitPrev'] = 0
 
         # Run periodic checks if object should be removed due to being idle
         # JP: Disable as test timeout in severe congestionconditions
@@ -212,19 +219,58 @@ class LedbatTest(object):
         if self._hdl_log is not None:
             self._hdl_log.cancel()
 
-        self._log_data_list.append([
-            time.time(),
-            self._chunks_sent,
-            self._chunks_resent,
-            self._chunks_acked,
-            self._ledbat.cwnd,
-            self._ledbat.flightsize,
-            self._ledbat.queuing_delay,
-            self._ledbat.rtt,
-            self._ledbat.srtt,
-            self._ledbat.rttvar,
-            self._ledbat.cto,
-        ])
+        time_now = time.time()
+
+        if not self.stats['Init']:
+            stats = {
+                'Time': time_now,
+                'dT': 0,
+                'Sent': self.stats['Sent'],
+                'Resent': self.stats['Resent'],
+                'Acked': self.stats['Ack'],
+                'Cwnd': self._ledbat.cwnd,
+                'FlightSz': self._ledbat.flightsize,
+                'QueuingDly': 0,
+                'Rtt': 0,
+                'Srtt': 0,
+                'Rttvar': 0,
+                'Cto': self._ledbat.cto,
+                'dSent': 0,
+                'dResent': 0,
+                'dAck': 0,
+                'dGateSent': 0,
+                'dGateWait': 0,
+            }
+            self.stats['Init'] = True
+        else:
+            stats = {
+                'Time': time_now,
+                'dT': time_now - self.stats['TPrev'],
+                'Sent': self.stats['Sent'],
+                'Resent': self.stats['Resent'],
+                'Acked': self.stats['Ack'],
+                'Cwnd': self._ledbat.cwnd,
+                'FlightSz': self._ledbat.flightsize,
+                'QueuingDly': self._ledbat.queuing_delay,
+                'Rtt': self._ledbat.rtt,
+                'Srtt': self._ledbat.srtt,
+                'Rttvar': self._ledbat.rttvar,
+                'Cto': self._ledbat.cto,
+                'dSent': self.stats['Sent'] - self.stats['SentPrev'],
+                'dResent': self.stats['Resent'] - self.stats['ResentPrev'],
+                'dAck': self.stats['Ack'] - self.stats['AckPrev'],
+                'dGateSent': self.stats['GateSent'] - self.stats['GateSentPrev'],
+                'dGateWait': self.stats['GateWait'] - self.stats['GateWaitPrev'],
+            }
+
+        self._log_data_list.append(stats)
+
+        self.stats['TPrev'] = time_now
+        self.stats['SentPrev'] = self.stats['Sent']
+        self.stats['AckPrev'] = self.stats['Ack']
+        self.stats['ResentPrev'] = self.stats['Resent']
+        self.stats['GateSentPrev'] = self.stats['GateSent']
+        self.stats['GateWaitPrev'] = self.stats['GateWait']
 
         # Schedule next call
         self._hdl_log = self._ev_loop.call_later(LOG_INTERVAL, self._log_data)
@@ -246,14 +292,9 @@ class LedbatTest(object):
             filepath = filename
 
         with open(filepath, 'w', newline='') as fp_csv:
-            csvwriter = csv.writer(fp_csv)
-
-            # Make header
-            csvwriter.writerow(
-                [
-                    'Time', 'Sent', 'Resent', 'Acked', 'Cwnd', 'Flightsz',
-                    'Queuind_delay', 'Rtt', 'Srtt', 'Rttvar', 'Cto'
-                ])
+            fields = list(self._log_data_list[0].keys())
+            csvwriter = csv.DictWriter(fp_csv, fieldnames = fields)
+            csvwriter.writeheader()
 
             # Write all rows
             for row in self._log_data_list:
@@ -279,15 +320,17 @@ class LedbatTest(object):
            semaphore would be nicer.
         """
 
-        # TODO: Use semaphore(?) to release sending instead of polling.
-        if self._ledbat.try_sending(SZ_DATA):
+        # SZ_DATA + 24 Bytes for header
+        if self._ledbat.try_sending(SZ_DATA + 24):
+            self.stats['GateSent'] += 1
             self._build_and_send_data()
             self._hdl_send_data = self._ev_loop.call_soon(self._try_next_send)
 
             # Print stats
-            if self._chunks_sent % PRINT_EVERY == 0:
+            if self.stats['Sent'] % PRINT_EVERY == 0:
                 self._print_status()
         else:
+            self.stats['GateWait'] += 1
             self._hdl_send_data = self._ev_loop.call_soon(self._try_next_send)
 
     def _print_status(self):
@@ -300,13 +343,13 @@ class LedbatTest(object):
         if test_time == 0:
             return
 
-        all_sent = self._chunks_sent + self._chunks_resent
+        all_sent = self.stats['Sent'] + self.stats['Resent']
         tx_rate = all_sent / test_time
 
         # Print data
         logging.info('Time: %.2f TX/ACK/RES: %s/%s/%s TxR: %.2f',
-                     test_time, self._chunks_sent, self._chunks_acked,
-                     self._chunks_resent, tx_rate)
+                     test_time, self.stats['Sent'], self.stats['Ack'],
+                     self.stats['Resent'], tx_rate)
 
     def _send_data(self, seq_num, time_sent, data):
         """Frame given data and send it"""
@@ -344,7 +387,7 @@ class LedbatTest(object):
         self._inflight.add(seq_num, time_now, None)
 
         # Update stats
-        self._chunks_sent += 1
+        self.stats['Sent'] += 1
 
     def data_received(self, data, receive_time):
         """Handle the DATA message for this test"""
@@ -397,7 +440,7 @@ class LedbatTest(object):
             (_, _, data) = self._inflight.get_item(seq_num)
             self._send_data(seq_num, time.time(), data)
             self._inflight.set_resent(seq_num)
-            self._chunks_resent += 1
+            self.stats['Resent'] += 1
 
     def ack_received(self, ack_data, rx_time):
         """Handle the ACK"""
@@ -425,7 +468,7 @@ class LedbatTest(object):
                 (time_stamp, resent, _) = self._inflight.pop_given(acked_seq_num)
                 self._cnt_ooo += 1
 
-            self._chunks_acked += 1
+            self.stats['Ack'] += 1
             last_acked = acked_seq_num
 
             if not resent:
@@ -447,7 +490,7 @@ class LedbatTest(object):
         delays = [x / 1000 for x in delays]
 
         # Feed new data to LEDBAT
-        self._ledbat.update_measurements((ack_to - ack_from + 1) * SZ_DATA, delays, rtts)
+        self._ledbat.update_measurements(((ack_to - ack_from + 1) * SZ_DATA) + 24, delays, rtts)
 
     def dispose(self):
         """Cleanup this test"""
