@@ -81,6 +81,8 @@ class LedbatTest(object):
         self.stats['Sent'] = 0
         self.stats['Ack'] = 0
         self.stats['Resent'] = 0
+        self.stats['OooPkt'] = 0
+        self.stats['DupPkt'] = 0
         self.stats['SentPrev'] = 0
         self.stats['AckPrev'] = 0
         self.stats['ResentPrev'] = 0
@@ -89,6 +91,8 @@ class LedbatTest(object):
         self.stats['GateWait'] = 0
         self.stats['GateSentPrev'] = 0
         self.stats['GateWaitPrev'] = 0
+        self.stats['OooPktPrev'] = 0
+        self.stats['DupPktPrev'] = 0
 
         # Run periodic checks if object should be removed due to being idle
         # JP: Disable as test timeout in severe congestionconditions
@@ -244,6 +248,8 @@ class LedbatTest(object):
                 'Sent': self.stats['Sent'],
                 'Resent': self.stats['Resent'],
                 'Acked': self.stats['Ack'],
+                'OooPkt': self.stats['OooPkt'],
+                'DupPkt': self.stats['DupPkt'],
                 'Cwnd': self._ledbat.cwnd,
                 'FlightSz': self._ledbat.flightsize,
                 'QueuingDly': 0,
@@ -256,6 +262,8 @@ class LedbatTest(object):
                 'dAck': 0,
                 'dGateSent': 0,
                 'dGateWait': 0,
+                'dOooPkt': 0,
+                'dDupPkt': 0,
             }
             self.stats['Init'] = True
         else:
@@ -265,6 +273,8 @@ class LedbatTest(object):
                 'Sent': self.stats['Sent'],
                 'Resent': self.stats['Resent'],
                 'Acked': self.stats['Ack'],
+                'OooPkt': self.stats['OooPkt'],
+                'DupPkt': self.stats['DupPkt'],
                 'Cwnd': self._ledbat.cwnd,
                 'FlightSz': self._ledbat.flightsize,
                 'QueuingDly': self._ledbat.queuing_delay,
@@ -277,6 +287,8 @@ class LedbatTest(object):
                 'dAck': self.stats['Ack'] - self.stats['AckPrev'],
                 'dGateSent': self.stats['GateSent'] - self.stats['GateSentPrev'],
                 'dGateWait': self.stats['GateWait'] - self.stats['GateWaitPrev'],
+                'dOooPkt': self.stats['OooPkt'] - self.stats['OooPktPrev'],
+                'dDupPkt': self.stats['DupPkt'] - self.stats['DupPktPrev'],
             }
 
         self._log_data_list.append(stats)
@@ -287,6 +299,8 @@ class LedbatTest(object):
         self.stats['ResentPrev'] = self.stats['Resent']
         self.stats['GateSentPrev'] = self.stats['GateSent']
         self.stats['GateWaitPrev'] = self.stats['GateWait']
+        self.stats['OooPktPrev'] = self.stats['OooPkt']
+        self.stats['DupPktPrev'] = self.stats['DupPkt']
 
         # Schedule next call
         self._hdl_log = self._ev_loop.call_later(LOG_INTERVAL, self._log_data)
@@ -364,7 +378,10 @@ class LedbatTest(object):
         """Print status during sending"""
 
         # Calculate values
-        test_time = time.time() - self._time_start
+        if self._time_start is None:
+            test_time = 0
+        else:
+            test_time = time.time() - self._time_start
 
         # Prevent div/0 early on
         if test_time == 0:
@@ -483,7 +500,9 @@ class LedbatTest(object):
 
         # Do not process duplicates
         if ack_to < self._inflight.peek():
-            logging.info('Duplciate ACK packet. ACKed: %s:%s', ack_from, ack_to)
+            self.stats['DupPkt'] += 1
+            #logging.info('Duplciate ACK packet. ACKed: %s:%s; Head: %s',
+            #        ack_from, ack_to, self._inflight.peek())
             return
 
         # Check for out-of-order and calculate rtts
@@ -491,9 +510,17 @@ class LedbatTest(object):
 
             if acked_seq_num == self._inflight.peek():
                 (time_stamp, resent, _) = self._inflight.pop()
+                if resent:
+                    pass
+                    #logging.info('Cleared resent from head: %s', acked_seq_num)
+                else:
+                    # Reset if clearing non-resends from head of line
+                    self._cnt_ooo = 0
             else:
-                (time_stamp, resent, _) = self._inflight.pop_given(acked_seq_num)
-                self._cnt_ooo += 1
+                (time_stamp, resent, _, is_ooo) = self._inflight.pop_given(acked_seq_num)
+                if is_ooo:
+                    self._cnt_ooo += 1
+                    self.stats['OooPkt'] += 1
 
             self.stats['Ack'] += 1
             last_acked = acked_seq_num
@@ -501,13 +528,18 @@ class LedbatTest(object):
             if not resent:
                 rtts.append(rx_time - time_stamp)
 
-        if self._cnt_ooo > OOO_THRESH:
+        if self._cnt_ooo >= OOO_THRESH:
             resendable = self._inflight.get_resendable(last_acked)
             self._resend_indicated(resendable)
             self._ledbat.data_loss()
-            logging.info('Dataloss, num-ooo: %s', self._cnt_ooo)
-
-        self._cnt_ooo = 0
+            #logging.info('Dataloss, num-ooo: %s, Resend: %s; LastAck: %s; Front: %s', 
+            #        self._cnt_ooo, resendable, last_acked, 
+            #        [
+            #            self._inflight._deq[-1],
+            #            self._inflight._deq[-2],
+            #            self._inflight._deq[-3]
+            #        ])
+            self._cnt_ooo = 0
 
         # Extract list of delays
         for dalay in range(0, num_delays):

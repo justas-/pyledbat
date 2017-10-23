@@ -67,12 +67,27 @@ class InflightTrack(object):
 
     def pop_given(self, seq, return_item=True):
         """Remove diven SEQ number"""
+        is_ooo = False
+
+        # Check if there is at least on non-resent item
+        for sent_seq in reversed(self._deq):
+            # Exit as-soon as we find ourselves
+            if sent_seq == seq:
+                break
+
+            (_, resent, _) = self._store[sent_seq]
+            if resent:
+                continue
+            else:
+                is_ooo = True
+                break
+
         self._deq.remove(seq)
-        item = self._store[seq]
+        (time_stamp, resent, data) = self._store[seq]
         del self._store[seq]
 
         if return_item:
-            return item
+            return (time_stamp, resent, data, is_ooo)
 
     def size(self):
         """Get size of deque"""

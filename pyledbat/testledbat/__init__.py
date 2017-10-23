@@ -125,7 +125,7 @@ def extract_ledbat_params(parameters):
 
     for attr, value in vars(parameters).items():
         try:
-            if attr.startswith('ledbat'):
+            if attr.startswith('ledbat') and value is not None:
                 ledbat_params[attr[attr.index('_')+1:]] = value
         except IndexError:
             # Better check your typos next time...

@@ -161,6 +161,10 @@ class SimpleLedbat(baseledbat.BaseLedbat):
         # Filter value to the lowest value, as some measurements should be void
         # when using delayed ACKs
 
+        # NOP if no valid rtt_values (Karn's Algorithm)
+        if not any(rtt_values):
+            return
+
         rtt = min(rtt_values)
 
         if not self._rt_measured:
