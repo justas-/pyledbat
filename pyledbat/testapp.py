@@ -33,6 +33,7 @@ def main():
     parser.add_argument('--log-name', help='Name of the log file (replace default UnixTime-IP-Port)')
     parser.add_argument('--log-dir', help='Directory to place results file')
     parser.add_argument('--time', help='Time to run the test', type=int)
+    parser.add_argument('--parallel', help='Number of parallel streams to send', type=int)
     parser.add_argument('--ledbat-set-target', help='Set LEDBAT target queuing delay', type=int)
 
     # Parse the command line params

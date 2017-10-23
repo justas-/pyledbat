@@ -70,21 +70,32 @@ class ClientRole(baserole.BaseRole):
             'log_name':kwargs.get('log_name'),
             'ledbat_params':kwargs.get('ledbat_params'),
             'log_dir':kwargs.get('log_dir'),
+            'stream_id':None,
         }
-        ledbattest = ledbat_test.LedbatTest(**test_args)
-        ledbattest.local_channel = random.randint(1, 65534)
 
-        # Save in the list of tests
-        self._tests[ledbattest.local_channel] = ledbattest
+        total_streams = kwargs.get('parallel')
 
-        # Schedule test stop if required
-        test_len = kwargs.get('test_len')
-        if test_len:
-            ledbattest.stop_hdl = asyncio.get_event_loop().call_later(
-                test_len, self._stop_test, ledbattest)
+        # Run required number of tests
+        for stream_id in range(0, total_streams):
 
-        # Send the init message to the server
-        ledbattest.start_init()
+            # Leave stream id -> None if running only one
+            if total_streams != 1:
+                test_args['stream_id'] = stream_id
+
+            ledbattest = ledbat_test.LedbatTest(**test_args)
+            ledbattest.local_channel = random.randint(1, 65534)
+
+            # Save in the list of tests
+            self._tests[ledbattest.local_channel] = ledbattest
+
+            # Schedule test stop if required
+            test_len = kwargs.get('test_len')
+            if test_len:
+                ledbattest.stop_hdl = asyncio.get_event_loop().call_later(
+                    test_len, self._stop_test, ledbattest)
+
+            # Send the init message to the server
+            ledbattest.start_init()
 
     def _stop_test(self, test):
         """Stop the given test"""

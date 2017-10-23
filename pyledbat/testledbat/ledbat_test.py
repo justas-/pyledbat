@@ -49,6 +49,7 @@ class LedbatTest(object):
         self._ledbat_params = kwargs.get('ledbat_params')
         self._log_dir = kwargs.get('log_dir')
         self._log_name = kwargs.get('log_name')
+        self._stream_id = kwargs.get('stream_id')
 
         self._ev_loop = asyncio.get_event_loop()
 
@@ -294,12 +295,23 @@ class LedbatTest(object):
         """Save log to the file"""
 
         if self._log_name:
-            filename = '{}.csv'.format(self._log_name)
+            if self._stream_id is None:
+                filename = '{}.csv'.format(self._log_name)
+            else:
+                filename = '{}-stream-{}.csv'.format(
+                    self._log_name, self._stream_id)
         else:
-            filename = '{}-{}-{}.csv'.format(
-                int(self._time_start),
-                self._remote_ip,
-                self._remote_port)
+            if self._stream_id is None:
+                filename = '{}-{}-{}.csv'.format(
+                    int(self._time_start),
+                    self._remote_ip,
+                    self._remote_port)
+            else:
+                filename = '{}-{}-{}-stream-{}.csv'.format(
+                    int(self._time_start),
+                    self._remote_ip,
+                    self._remote_port,
+                    self._stream_id)
 
         if self._log_dir:
             filepath = os.path.join(self._log_dir, filename)

@@ -42,6 +42,10 @@ def test_ledbat(params):
     if not params.time or params.time < 0:
         params.time = None
 
+    # Run at least one client
+    if not params.parallel or params.parallel < 1:
+        params.parallel = 1
+
     ledbat_params = None
 
     # Print debug information
@@ -94,7 +98,8 @@ def test_ledbat(params):
                             log_name=params.log_name,
                             log_dir=params.log_dir,
                             test_len=params.time,
-                            ledbat_params=ledbat_params)
+                            ledbat_params=ledbat_params,
+                            parallel=params.parallel)
     else:
         # Do the Server thing
         server = serverrole.ServerRole(protocol)
