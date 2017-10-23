@@ -73,6 +73,7 @@ class SimpleLedbat(baseledbat.BaseLedbat):
 
         self._last_send_time = None     # When data was actually sent last time
         self._last_cto_fail_time = None # When last CTO fail happened
+        self._in_cto = False            # Are we in CTO mode
 
         # [RFC6298]
         self._rt_measured = False  # Flag to check if the first measurement was done
@@ -95,23 +96,38 @@ class SimpleLedbat(baseledbat.BaseLedbat):
         # CTO check
         if self._last_ack_received is not None:
             # At least one ACK was received
-            
-            if self._last_ack_received + self._cto < time_now:
-                # Last ACK received longet than CTO ago -> Congestion
-                # NB: This conditions should be cleared on idle connections
 
-                if self._last_cto_fail_time is None:
-                    # We never failed CTO check before
-                    self._last_cto_fail_time = time_now
-                    self._no_ack_in_cto()
+            # Check if we are under heavy congestion
+            if self._in_cto:
+                # We are in CTO at the moment
+                
+                if self._last_cto_fail_time + self._cto > time_now:
+                    # We are still in CTO, do not send
+                    return False
                 else:
-                    # Call CTO failure at most once per CTO
-                    if self._last_cto_fail_time + self._cto < time_now:
+                    # We are out of congestion, try sending if CWND allows
+                    self._in_cto = False
+            
+            else:
+                # We are not in congestion, check if there is congestion
+                # Condition 1 to allow some time after we leave CTO for ACKs to arrive
+                # Condition 2 is actual Congestion check
+                if (self._last_send_time + (2 * self._rtt) > time_now) and (self._last_ack_received + self._cto < time_now):
+                    # Congestion
+                    # NB: Condition 1 ensures that we give some time to receive ACKs after long periods of idling
+
+                    if self._last_cto_fail_time is None:
+                        # We never failed CTO check before
                         self._last_cto_fail_time = time_now
                         self._no_ack_in_cto()
+                    else:
+                        # Call CTO failure at most once per CTO
+                        if self._last_cto_fail_time + self._cto < time_now:
+                            self._last_cto_fail_time = time_now
+                            self._no_ack_in_cto()
 
-                # Congested -> No sending
-                return False
+                    # Congested -> No sending
+                    return False
 
         # Check congestion window check
         if self._flightsize + data_len <= self.cwnd:
