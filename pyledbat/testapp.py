@@ -37,6 +37,7 @@ def main():
     parser.add_argument('--time', help='Time to run the test', type=int)
     parser.add_argument('--parallel', help='Number of parallel streams to send', type=int)
     parser.add_argument('--ledbat-set-target', help='Set LEDBAT target queuing delay', type=int)
+    parser.add_argument('--ledbat-set-allowed-increase', help='Set LEDBAT allowed cwnd increase factor', type=float)
 
     # Parse the command line params
     args = parser.parse_args()

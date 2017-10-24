@@ -88,9 +88,11 @@ class LedbatTest(object):
         self.stats['ResentPrev'] = 0
         self.stats['TPrev'] = 0
         self.stats['GateSent'] = 0
-        self.stats['GateWait'] = 0
+        self.stats['GateWaitCTO'] = 0
+        self.stats['GateWaitCWND'] = 0
         self.stats['GateSentPrev'] = 0
-        self.stats['GateWaitPrev'] = 0
+        self.stats['GateWaitCTOPrev'] = 0
+        self.stats['GateWaitCWNDPrev'] = 0
         self.stats['OooPktPrev'] = 0
         self.stats['DupPktPrev'] = 0
 
@@ -261,7 +263,8 @@ class LedbatTest(object):
                 'dResent': 0,
                 'dAck': 0,
                 'dGateSent': 0,
-                'dGateWait': 0,
+                'dGateWaitCTO': 0,
+                'dGateWaitCWND': 0,
                 'dOooPkt': 0,
                 'dDupPkt': 0,
             }
@@ -286,7 +289,8 @@ class LedbatTest(object):
                 'dResent': self.stats['Resent'] - self.stats['ResentPrev'],
                 'dAck': self.stats['Ack'] - self.stats['AckPrev'],
                 'dGateSent': self.stats['GateSent'] - self.stats['GateSentPrev'],
-                'dGateWait': self.stats['GateWait'] - self.stats['GateWaitPrev'],
+                'dGateWaitCTO': self.stats['GateWaitCTO'] - self.stats['GateWaitCTOPrev'],
+                'dGateWaitCWND': self.stats['GateWaitCWND'] - self.stats['GateWaitCWNDPrev'],
                 'dOooPkt': self.stats['OooPkt'] - self.stats['OooPktPrev'],
                 'dDupPkt': self.stats['DupPkt'] - self.stats['DupPktPrev'],
             }
@@ -298,7 +302,8 @@ class LedbatTest(object):
         self.stats['AckPrev'] = self.stats['Ack']
         self.stats['ResentPrev'] = self.stats['Resent']
         self.stats['GateSentPrev'] = self.stats['GateSent']
-        self.stats['GateWaitPrev'] = self.stats['GateWait']
+        self.stats['GateWaitCTOWPrev'] = self.stats['GateWaitCTO']
+        self.stats['GateWaitCWNDPrev'] = self.stats['GateWaitCWND']
         self.stats['OooPktPrev'] = self.stats['OooPkt']
         self.stats['DupPktPrev'] = self.stats['DupPkt']
 
@@ -362,7 +367,8 @@ class LedbatTest(object):
         """
 
         # SZ_DATA + 24 Bytes for header
-        if self._ledbat.try_sending(SZ_DATA + 24):
+        (can_send, reason) = self._ledbat.try_sending(SZ_DATA + 24)
+        if can_send:
             self.stats['GateSent'] += 1
             self._build_and_send_data()
             self._hdl_send_data = self._ev_loop.call_soon(self._try_next_send)
@@ -371,7 +377,11 @@ class LedbatTest(object):
             if self.stats['Sent'] % PRINT_EVERY == 0:
                 self._print_status()
         else:
-            self.stats['GateWait'] += 1
+            if reason == 1:
+                self.stats['GateWaitCTO'] += 1
+            elif reason == 2:
+                self.stats['GateWaitCWND'] += 1
+
             self._hdl_send_data = self._ev_loop.call_soon(self._try_next_send)
 
     def _print_status(self):

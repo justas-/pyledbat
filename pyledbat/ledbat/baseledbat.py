@@ -54,28 +54,25 @@ class BaseLedbat(object):
         for key, value in kwargs.items():
             if key == 'set_current_filter':
                 BaseLedbat.CURRENT_FILTER = value
-                logging.info('LEDBAT parameter changed: %s => %s', key, value)
-            if key == 'set_base_history':
+            elif key == 'set_base_history':
                 BaseLedbat.BASE_HISTORY = value
-                logging.info('LEDBAT parameter changed: %s => %s', key, value)
-            if key == 'set_init_cwnd':
+            elif key == 'set_init_cwnd':
                 BaseLedbat.INIT_CWND = value
-                logging.info('LEDBAT parameter changed: %s => %s', key, value)
-            if key == 'set_mss':
+            elif key == 'set_mss':
                 BaseLedbat.MSS = value
-                logging.info('LEDBAT parameter changed: %s => %s', key, value)
-            if key == 'set_target':
+            elif key == 'set_target':
                 BaseLedbat.TARGET = value
-                logging.info('LEDBAT parameter changed: %s => %s', key, value)
-            if key == 'set_gain':
+            elif key == 'set_gain':
                 BaseLedbat.GAIN = value
-                logging.info('LEDBAT parameter changed: %s => %s', key, value)
-            if key == 'set_allowed_increase':
+            elif key == 'set_allowed_increase':
                 BaseLedbat.ALLOWED_INCREASE = value
-                logging.info('LEDBAT parameter changed: %s => %s', key, value)
-            if key == 'set_min_cwnd':
+            elif key == 'set_min_cwnd':
                 BaseLedbat.MIN_CWND = value
-                logging.info('LEDBAT parameter changed: %s => %s', key, value)
+            else:
+                # Fall through option so logging is not done
+                continue
+
+            logging.info('LEDBAT parameter changed: %s => %s', key, value)
 
     def _ack_received(self, bytes_acked, ow_delays, rtt_delays):
         """Parse the received delay sample(s)

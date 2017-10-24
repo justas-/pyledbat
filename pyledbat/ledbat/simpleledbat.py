@@ -91,7 +91,7 @@ class SimpleLedbat(baseledbat.BaseLedbat):
             # By definition we can *always* send first segment
             self._flightsize += data_len
             self._last_send_time = time_now
-            return True
+            return (True, 0)
 
         # CTO check
         if self._last_ack_received is not None:
@@ -103,7 +103,7 @@ class SimpleLedbat(baseledbat.BaseLedbat):
                 
                 if self._last_cto_fail_time + self._cto > time_now:
                     # We are still in CTO, do not send
-                    return False
+                    return (False, 1)
                 else:
                     # We are out of congestion, try sending if CWND allows
                     self._in_cto = False
@@ -127,17 +127,17 @@ class SimpleLedbat(baseledbat.BaseLedbat):
                             self._no_ack_in_cto()
 
                     # Congested -> No sending
-                    return False
+                    return (False, 1)
 
         # Check congestion window check
         if self._flightsize + data_len <= self.cwnd:
             # We can send data
             self._flightsize += data_len
             self._last_send_time = time_now
-            return True
+            return (True, 0)
         else:
             # Will have to wait
-            return False
+            return (False, 2)
 
     def update_measurements(self, data_acked, ow_times, rt_times):
         """Update LEDBAT calculations. data_acked - number of bytes acked,
