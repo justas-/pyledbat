@@ -83,6 +83,7 @@ class LedbatTest(object):
         self.stats['Resent'] = 0
         self.stats['OooPkt'] = 0
         self.stats['DupPkt'] = 0
+        self.stats['LostPkt'] = 0
         self.stats['SentPrev'] = 0
         self.stats['AckPrev'] = 0
         self.stats['ResentPrev'] = 0
@@ -95,6 +96,7 @@ class LedbatTest(object):
         self.stats['GateWaitCWNDPrev'] = 0
         self.stats['OooPktPrev'] = 0
         self.stats['DupPktPrev'] = 0
+        self.stats['LostPktPrev'] = 0
 
         # Run periodic checks if object should be removed due to being idle
         # JP: Disable as test timeout in severe congestionconditions
@@ -252,6 +254,7 @@ class LedbatTest(object):
                 'Acked': self.stats['Ack'],
                 'OooPkt': self.stats['OooPkt'],
                 'DupPkt': self.stats['DupPkt'],
+                'LostPkt': self.stats['LostPkt'],
                 'Cwnd': self._ledbat.cwnd,
                 'FlightSz': self._ledbat.flightsize,
                 'QueuingDly': 0,
@@ -267,6 +270,7 @@ class LedbatTest(object):
                 'dGateWaitCWND': 0,
                 'dOooPkt': 0,
                 'dDupPkt': 0,
+                'dLostPkt' : 0,
             }
             self.stats['Init'] = True
         else:
@@ -278,6 +282,7 @@ class LedbatTest(object):
                 'Acked': self.stats['Ack'],
                 'OooPkt': self.stats['OooPkt'],
                 'DupPkt': self.stats['DupPkt'],
+                'LostPkt': self.stats['LostPkt'],
                 'Cwnd': self._ledbat.cwnd,
                 'FlightSz': self._ledbat.flightsize,
                 'QueuingDly': self._ledbat.queuing_delay,
@@ -293,6 +298,7 @@ class LedbatTest(object):
                 'dGateWaitCWND': self.stats['GateWaitCWND'] - self.stats['GateWaitCWNDPrev'],
                 'dOooPkt': self.stats['OooPkt'] - self.stats['OooPktPrev'],
                 'dDupPkt': self.stats['DupPkt'] - self.stats['DupPktPrev'],
+                'dLostPkt' : self.stats['LostPkt'] - self.stats['LostPktPrev'],
             }
 
         self._log_data_list.append(stats)
@@ -306,6 +312,7 @@ class LedbatTest(object):
         self.stats['GateWaitCWNDPrev'] = self.stats['GateWaitCWND']
         self.stats['OooPktPrev'] = self.stats['OooPkt']
         self.stats['DupPktPrev'] = self.stats['DupPkt']
+        self.stats['LostPktPrev'] = self.stats['LostPkt']
 
         # Schedule next call
         self._hdl_log = self._ev_loop.call_later(LOG_INTERVAL, self._log_data)
@@ -371,18 +378,17 @@ class LedbatTest(object):
         if can_send:
             self.stats['GateSent'] += 1
             self._build_and_send_data()
-            self._hdl_send_data = self._ev_loop.call_soon(self._try_next_send)
 
             # Print stats
             if self.stats['Sent'] % PRINT_EVERY == 0:
                 self._print_status()
         else:
-            if reason == 1:
+            if reason == simpleledbat.FailReason.CTO:
                 self.stats['GateWaitCTO'] += 1
-            elif reason == 2:
+            elif reason == simpleledbat.FailReason.CWND:
                 self.stats['GateWaitCWND'] += 1
 
-            self._hdl_send_data = self._ev_loop.call_soon(self._try_next_send)
+        self._hdl_send_data = self._ev_loop.call_soon(self._try_next_send)
 
     def _print_status(self):
         """Print status during sending"""
@@ -542,13 +548,6 @@ class LedbatTest(object):
             resendable = self._inflight.get_resendable(last_acked)
             self._resend_indicated(resendable)
             self._ledbat.data_loss()
-            #logging.info('Dataloss, num-ooo: %s, Resend: %s; LastAck: %s; Front: %s', 
-            #        self._cnt_ooo, resendable, last_acked, 
-            #        [
-            #            self._inflight._deq[-1],
-            #            self._inflight._deq[-2],
-            #            self._inflight._deq[-3]
-            #        ])
             self._cnt_ooo = 0
 
         # Extract list of delays

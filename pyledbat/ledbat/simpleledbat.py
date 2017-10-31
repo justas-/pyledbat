@@ -18,8 +18,15 @@ Wrapper class implementing simple RT and RTT measurements.
 """
 import time
 import math
+import enum
 
 from ledbat import baseledbat
+
+class FailReason(enum.Enum):
+    """Fail Reason Enumerator"""
+    NOFAIL = 0
+    CTO = 1
+    CWND = 2
 
 class SimpleLedbat(baseledbat.BaseLedbat):
     """Simple implementation of LEDBAT"""
@@ -88,10 +95,10 @@ class SimpleLedbat(baseledbat.BaseLedbat):
         time_now = time.time()
 
         if self._last_send_time is None:
-            # By definition we can *always* send first segment
+            # By definition we can *always* send the first segment
             self._flightsize += data_len
             self._last_send_time = time_now
-            return (True, 0)
+            return (True, FailReason.NOFAIL)
 
         # CTO check
         if self._last_ack_received is not None:
@@ -103,41 +110,44 @@ class SimpleLedbat(baseledbat.BaseLedbat):
                 
                 if self._last_cto_fail_time + self._cto > time_now:
                     # We are still in CTO, do not send
-                    return (False, 1)
+                    return (False, FailReason.CTO)
                 else:
                     # We are out of congestion, try sending if CWND allows
                     self._in_cto = False
             
             else:
                 # We are not in congestion, check if there is congestion
-                # Condition 1 to allow some time after we leave CTO for ACKs to arrive
-                # Condition 2 is actual Congestion check
-                if (self._last_send_time + (2 * self._rtt) > time_now) and (self._last_ack_received + self._cto < time_now):
+                if ((self._last_ack_received + self._cto < time_now) and    # The actual congestion check
+                    (self._last_send_time + (2 * self._rtt) > time_now)):   # Allow some time after we leave CTO for ACKs to arrive
+                    
                     # Congestion
-                    # NB: Condition 1 ensures that we give some time to receive ACKs after long periods of idling
 
-                    if self._last_cto_fail_time is None:
+                    if (self._last_cto_fail_time is None or
+                        self._last_cto_fail_time + self._cto < time_now):
                         # We never failed CTO check before
                         self._last_cto_fail_time = time_now
                         self._no_ack_in_cto()
-                    else:
-                        # Call CTO failure at most once per CTO
-                        if self._last_cto_fail_time + self._cto < time_now:
-                            self._last_cto_fail_time = time_now
-                            self._no_ack_in_cto()
-
+                    
                     # Congested -> No sending
-                    return (False, 1)
+                    self._in_cto = True
+                    return (False, FailReason.CTO)
+
+                else:
+                    # No Congestion
+                    pass
+        else:
+            # So far no ACKs received - assume no congestion, check CWND
+            pass
 
         # Check congestion window check
-        if self._flightsize + data_len <= self.cwnd:
+        if self._flightsize + data_len <= self._cwnd:
             # We can send data
             self._flightsize += data_len
             self._last_send_time = time_now
-            return (True, 0)
+            return (True, FailReason.NOFAIL)
         else:
             # Will have to wait
-            return (False, 2)
+            return (False, FailReason.CWND)
 
     def update_measurements(self, data_acked, ow_times, rt_times):
         """Update LEDBAT calculations. data_acked - number of bytes acked,
