@@ -30,9 +30,6 @@
     <Compile Include="ledbat\simpleledbat.py">
       <SubType>Code</SubType>
     </Compile>
-    <Compile Include="ledbat\swiftledbat.py">
-      <SubType>Code</SubType>
-    </Compile>
     <Compile Include="testledbat\baserole.py">
       <SubType>Code</SubType>
     </Compile>

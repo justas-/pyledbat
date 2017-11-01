@@ -79,9 +79,6 @@ class BaseLedbat(object):
            delays is milliseconds, rt_measurements in seconds!
         """
 
-        # Update time of last ACK
-        self._last_ack_received = time.time()
-
         # Process all received delay samples
         for delay_sample in ow_delays:
             self._update_base_delay(delay_sample)

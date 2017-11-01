@@ -271,6 +271,7 @@ class LedbatTest(object):
                 'dOooPkt': 0,
                 'dDupPkt': 0,
                 'dLostPkt' : 0,
+                'InCTO': self._ledbat.in_cto,
             }
             self.stats['Init'] = True
         else:
@@ -299,6 +300,7 @@ class LedbatTest(object):
                 'dOooPkt': self.stats['OooPkt'] - self.stats['OooPktPrev'],
                 'dDupPkt': self.stats['DupPkt'] - self.stats['DupPktPrev'],
                 'dLostPkt' : self.stats['LostPkt'] - self.stats['LostPktPrev'],
+                'InCTO': self._ledbat.in_cto,
             }
 
         self._log_data_list.append(stats)
@@ -407,9 +409,9 @@ class LedbatTest(object):
         tx_rate = all_sent / test_time
 
         # Print data
-        logging.info('Time: %.2f TX/ACK/RES: %s/%s/%s TxR: %.2f',
+        logging.info('Time: %.2f TX/ACK/RES: %s/%s/%s TxR: %.2f, QHead: %s',
                      test_time, self.stats['Sent'], self.stats['Ack'],
-                     self.stats['Resent'], tx_rate)
+                     self.stats['Resent'], tx_rate, self._inflight.peek())
 
     def _send_data(self, seq_num, time_sent, data):
         """Frame given data and send it"""
@@ -558,7 +560,8 @@ class LedbatTest(object):
         delays = [x / 1000 for x in delays]
 
         # Feed new data to LEDBAT
-        self._ledbat.update_measurements(((ack_to - ack_from + 1) * SZ_DATA) + 24, delays, rtts)
+        self._ledbat.update_measurements(
+            ((ack_to - ack_from + 1) * SZ_DATA) + 24, delays, rtts, rx_time)
 
     def dispose(self):
         """Cleanup this test"""
