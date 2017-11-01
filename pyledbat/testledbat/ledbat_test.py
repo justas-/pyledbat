@@ -266,6 +266,8 @@ class LedbatTest(object):
                 'dResent': 0,
                 'dAck': 0,
                 'dGateSent': 0,
+                'GateWaitCTO': 0,
+                'GateWaitCWND': 0,
                 'dGateWaitCTO': 0,
                 'dGateWaitCWND': 0,
                 'dOooPkt': 0,
@@ -295,6 +297,8 @@ class LedbatTest(object):
                 'dResent': self.stats['Resent'] - self.stats['ResentPrev'],
                 'dAck': self.stats['Ack'] - self.stats['AckPrev'],
                 'dGateSent': self.stats['GateSent'] - self.stats['GateSentPrev'],
+                'GateWaitCTO': self.stats['GateWaitCTO'],
+                'GateWaitCWND': self.stats['GateWaitCWND'],
                 'dGateWaitCTO': self.stats['GateWaitCTO'] - self.stats['GateWaitCTOPrev'],
                 'dGateWaitCWND': self.stats['GateWaitCWND'] - self.stats['GateWaitCWNDPrev'],
                 'dOooPkt': self.stats['OooPkt'] - self.stats['OooPktPrev'],
@@ -310,7 +314,7 @@ class LedbatTest(object):
         self.stats['AckPrev'] = self.stats['Ack']
         self.stats['ResentPrev'] = self.stats['Resent']
         self.stats['GateSentPrev'] = self.stats['GateSent']
-        self.stats['GateWaitCTOWPrev'] = self.stats['GateWaitCTO']
+        self.stats['GateWaitCTOPrev'] = self.stats['GateWaitCTO']
         self.stats['GateWaitCWNDPrev'] = self.stats['GateWaitCWND']
         self.stats['OooPktPrev'] = self.stats['OooPkt']
         self.stats['DupPktPrev'] = self.stats['DupPkt']
