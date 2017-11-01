@@ -107,13 +107,20 @@ class SimpleLedbat(baseledbat.BaseLedbat):
             # Check if we are under heavy congestion
             if self._in_cto:
                 # We are in CTO at the moment
-                
-                if self._last_cto_fail_time + self._cto > time_now:
-                    # We are still in CTO, do not send
-                    return (False, FailReason.CTO)
-                else:
-                    # We are out of congestion, try sending if CWND allows
+
+                if self._last_ack_received > time_now - self._cto:
+                    # We RXd some ACKs within CTO -> no longer in CTO, check CWND
                     self._in_cto = False
+
+                else:
+                    # No ACKs in CTO, Further checking
+
+                    if self._last_cto_fail_time + self._cto > time_now:
+                        # We are still in CTO, do not send
+                        return (False, FailReason.CTO)
+                    else:
+                        # We are out of congestion, try sending if CWND allows
+                        self._in_cto = False
             
             else:
                 # We are not in congestion, check if there is congestion
