@@ -36,6 +36,7 @@ class BaseLedbat(object):
     GAIN = 1                    # Congestion window to delay response rate
     ALLOWED_INCREASE = 1
     MIN_CWND = 2
+    LOSS_CWND_FRAC = 0.5        # Fraction of CWND change on data loss
 
     def __init__(self, **kwargs):
         """Initialize the instance"""
@@ -68,11 +69,16 @@ class BaseLedbat(object):
                 BaseLedbat.ALLOWED_INCREASE = value
             elif key == 'set_min_cwnd':
                 BaseLedbat.MIN_CWND = value
+            elif key == 'set_loss_cwnd_frac':
+                BaseLedbat.LOSS_CWND_FRAC = value
             else:
                 # Fall through option so logging is not done
                 continue
 
             logging.info('LEDBAT parameter changed: %s => %s', key, value)
+
+        # Callback on no ACK in CTO
+        self._cb_cto = kwargs.get('cb_cto')
 
     def _ack_received(self, bytes_acked, ow_delays, rtt_delays):
         """Parse the received delay sample(s)
@@ -116,7 +122,9 @@ class BaseLedbat(object):
         # Reduce the congestion window size
         self._cwnd = min([
             self._cwnd,
-            int(max([self._cwnd / 2, BaseLedbat.MIN_CWND * BaseLedbat.MSS]))
+            int(max([
+                self._cwnd * BaseLedbat.LOSS_CWND_FRAC,
+                BaseLedbat.MIN_CWND * BaseLedbat.MSS]))
         ])
 
         # Account for data in-flight
@@ -128,6 +136,10 @@ class BaseLedbat(object):
 
         self._cwnd = 1 * BaseLedbat.MSS
         self._cto = 2 * self._cto
+
+        # Any actions?
+        if self._cb_cto is not None:
+            self._cb_cto()
 
     def _update_cto(self, rtt_values):
         """Calculate congestion timeout (CTO)"""

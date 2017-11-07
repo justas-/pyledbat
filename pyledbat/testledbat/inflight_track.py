@@ -82,12 +82,17 @@ class InflightTrack(object):
                 is_ooo = True
                 break
 
-        self._deq.remove(seq)
+        try:
+            self._deq.remove(seq)
+        except ValueError:
+            # This was removed before
+            return (None, None, None, None, True)
+
         (time_stamp, resent, data) = self._store[seq]
         del self._store[seq]
 
         if return_item:
-            return (time_stamp, resent, data, is_ooo)
+            return (time_stamp, resent, data, is_ooo, False)
 
     def size(self):
         """Get size of deque"""

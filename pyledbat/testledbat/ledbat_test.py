@@ -32,8 +32,8 @@ T_INIT_DATA = 5.0   # Time to wait for DATA after sending INIT-ACK
 T_IDLE = 10.0       # Time to wait when idle before destroying
 
 SZ_DATA = 1024      # Data size in each message
-OOO_THRESH = 3      # When to declare dataloss
-PRINT_EVERY = 5000  # Print debug every this many packets sent
+OOO_THRESH = 5      # When to declare dataloss
+PRINT_EVERY = 25000  # Print debug every this many packets sent
 LOG_INTERVAL = 0.1  # Log every 0.1 sec
 
 class LedbatTest(object):
@@ -62,8 +62,13 @@ class LedbatTest(object):
         self._hdl_send_data = None      # Used to schedule data sending
         self._hdl_idle = None           # Idle check handle
 
+
+        self._ledbat_params['cb_cto'] = self._resend_all
         self._ledbat = simpleledbat.SimpleLedbat(**self._ledbat_params)
         self._next_seq = 1
+        self._last_ackd = 0
+        self._print_all = False
+        self._cto_resend = True
 
         self._inflight = InflightTrack()
         self._cnt_ooo = 0               # Count of Out-of-Order packets
@@ -365,6 +370,10 @@ class LedbatTest(object):
         logging.info('%s Request to stop!', self)
         self._time_stop = time.time()
         self._print_status()
+        logging.info('Q: %s', list(reversed(self._inflight._deq))[:20])
+        logging.info('Total: Sent/Ack/Resent/Dup %s/%s/%s/%s',
+            self.stats['Sent'], self.stats['Ack'], self.stats['Resent'],
+            self.stats['DupPkt'])
 
         # Make the last log entry
         if self._log_data:
@@ -372,6 +381,18 @@ class LedbatTest(object):
             if self._hdl_log is not None:
                 self._hdl_log.cancel()
             self._save_log()
+
+    def _resend_all(self):
+        """Resend all packets from Q"""
+        rlist = []
+        for seq_num in reversed(self._inflight._deq):
+            rlist.append(seq_num)
+            (_, _, data) = self._inflight.get_item(seq_num)
+            self._send_data(seq_num, time.time(), data)
+            self._inflight.set_resent(seq_num)
+            self.stats['Resent'] += 1
+
+        #logging.info("CTO resend all resent: %s", rlist)
 
     def _try_next_send(self):
         """Try sending next data segment. This implementation sends data
@@ -385,12 +406,17 @@ class LedbatTest(object):
             self.stats['GateSent'] += 1
             self._build_and_send_data()
 
+            #self._cto_resend = True
+
             # Print stats
             if self.stats['Sent'] % PRINT_EVERY == 0:
                 self._print_status()
         else:
             if reason == simpleledbat.FailReason.CTO:
                 self.stats['GateWaitCTO'] += 1
+                #if self._cto_resend:
+                #    self._resend_all()
+                #    self._cto_resend = False
             elif reason == simpleledbat.FailReason.CWND:
                 self.stats['GateWaitCWND'] += 1
 
@@ -413,9 +439,10 @@ class LedbatTest(object):
         tx_rate = all_sent / test_time
 
         # Print data
-        logging.info('Time: %.2f TX/ACK/RES: %s/%s/%s TxR: %.2f, QHead: %s',
+        logging.info('Time: %.2f TX/ACK/RES: %s/%s/%s TxR: %.2f, QHead: %s, LastACKd: %s',
                      test_time, self.stats['Sent'], self.stats['Ack'],
-                     self.stats['Resent'], tx_rate, self._inflight.peek())
+                     self.stats['Resent'], tx_rate, self._inflight.peek(),
+                     self._last_ackd)
 
     def _send_data(self, seq_num, time_sent, data):
         """Frame given data and send it"""
@@ -507,6 +534,7 @@ class LedbatTest(object):
             self._send_data(seq_num, time.time(), data)
             self._inflight.set_resent(seq_num)
             self.stats['Resent'] += 1
+            #logging.info('Resent %s', seq_num)
 
     def ack_received(self, ack_data, rx_time):
         """Handle the ACK"""
@@ -539,20 +567,33 @@ class LedbatTest(object):
                     # Reset if clearing non-resends from head of line
                     self._cnt_ooo = 0
             else:
-                (time_stamp, resent, _, is_ooo) = self._inflight.pop_given(acked_seq_num)
+                (time_stamp, resent, _, is_ooo, is_dup) = self._inflight.pop_given(acked_seq_num)
+                if is_dup:
+                    self.stats['DupPkt'] += 1
+                    #logging.info('Late Duplciate ACK packet. ACKed: %s:%s; Head: %s',
+                    #ack_from, ack_to, self._inflight.peek())
+                    return
+                    
                 if is_ooo:
                     self._cnt_ooo += 1
                     self.stats['OooPkt'] += 1
 
             self.stats['Ack'] += 1
             last_acked = acked_seq_num
+            self._last_ackd = acked_seq_num
 
             if not resent:
                 rtts.append(rx_time - time_stamp)
 
         if self._cnt_ooo >= OOO_THRESH:
+            #logging.info('OOO Threshold passed')
             resendable = self._inflight.get_resendable(last_acked)
+            #logging.info('Last ACK: %s; Q: %s; Resend: %s',
+            #    self._last_ackd,
+            #    list(reversed(self._inflight._deq))[:20],
+            #    resendable)
             self._resend_indicated(resendable)
+            #self._resend_all()
             self._ledbat.data_loss()
             self._cnt_ooo = 0
 
