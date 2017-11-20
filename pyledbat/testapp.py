@@ -38,6 +38,7 @@ def main():
     parser.add_argument('--parallel', help='Number of parallel streams to send', type=int)
     parser.add_argument('--ledbat-set-target', help='Set LEDBAT target queuing delay', type=int)
     parser.add_argument('--ledbat-set-allowed-increase', help='Set LEDBAT allowed cwnd increase factor', type=float)
+    parser.add_argument('--ledbat-set-loss-cwnd-frac', help='Set LEDBAT CWND reduction on data-loss', type=float)
 
     # Parse the command line params
     args = parser.parse_args()
