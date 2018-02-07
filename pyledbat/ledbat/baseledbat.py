@@ -80,6 +80,16 @@ class BaseLedbat(object):
         # Callback on no ACK in CTO
         self._cb_cto = kwargs.get('cb_cto')
 
+    @property
+    def filter_current(self):
+        """Get the output of the filter algorithm"""
+        return self._filter_alg(self._current_delays)
+
+    @property
+    def min_base(self):
+        """Get the minimal value of base delays"""
+        return min(self._base_delays)
+
     def _ack_received(self, bytes_acked, ow_delays, rtt_delays):
         """Parse the received delay sample(s)
            delays is milliseconds, rt_measurements in seconds!

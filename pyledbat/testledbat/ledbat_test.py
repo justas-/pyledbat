@@ -279,6 +279,8 @@ class LedbatTest(object):
                 'dDupPkt': 0,
                 'dLostPkt' : 0,
                 'InCTO': self._ledbat.in_cto,
+                'FilterOut':0,
+                'BaseMin':0,
             }
             self.stats['Init'] = True
         else:
@@ -310,6 +312,8 @@ class LedbatTest(object):
                 'dDupPkt': self.stats['DupPkt'] - self.stats['DupPktPrev'],
                 'dLostPkt' : self.stats['LostPkt'] - self.stats['LostPktPrev'],
                 'InCTO': self._ledbat.in_cto,
+                'FilterOut': self._ledbat.filter_current,
+                'BaseMin': self._ledbat.min_base,
             }
 
         self._log_data_list.append(stats)
@@ -333,13 +337,13 @@ class LedbatTest(object):
 
         if self._log_name:
             if self._stream_id is None:
-                filename = '{}.csv'.format(self._log_name)
+                filename = '{}-stream-0.csv'.format(self._log_name)
             else:
                 filename = '{}-stream-{}.csv'.format(
                     self._log_name, self._stream_id)
         else:
             if self._stream_id is None:
-                filename = '{}-{}-{}.csv'.format(
+                filename = '{}-{}-{}-stream-0.csv'.format(
                     int(self._time_start),
                     self._remote_ip,
                     self._remote_port)
@@ -599,7 +603,7 @@ class LedbatTest(object):
 
         # Extract list of delays
         for dalay in range(0, num_delays):
-            delays.append(int(struct.unpack('>Q', ack_data[12+dalay*8:20+dalay*8])[0]))
+            delays.append(int(struct.unpack('>q', ack_data[12+dalay*8:20+dalay*8])[0]))
 
         # Move to milliseconds from microseconds
         delays = [x / 1000 for x in delays]

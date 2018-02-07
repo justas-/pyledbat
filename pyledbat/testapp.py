@@ -18,6 +18,7 @@ Test LEDBAT implementation in iperf-ish way
 """
 import logging
 import argparse
+import sys
 
 from testledbat import test_ledbat
 
@@ -45,6 +46,8 @@ def main():
 
     # Run the test
     test_ledbat(args)
+
+    sys.stdout.flush()
 
 # Move scope to main() (I hate PyLint...)
 if __name__ == '__main__':
